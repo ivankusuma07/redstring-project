@@ -79,7 +79,7 @@ export function TokenHeader({
         <>
           <span>·</span>
           <span>Scanned at block {s.blockNumber.toLocaleString("en-US")}</span>
-          {!s.example && <span className="text-g1">({ago(s.createdAt)} ago)</span>}
+          {!s.example && <span className="text-g1">({ago(s.createdAt) === "now" ? "just now" : `${ago(s.createdAt)} ago`})</span>}
           {!s.example && (
             <button
               type="button"

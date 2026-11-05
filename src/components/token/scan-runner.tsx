@@ -1,5 +1,6 @@
 "use client";
 
+import { API_BASE } from "@/lib/api-base";
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState } from "react";
 import { CHAIN_LIST, CHAINS } from "@/lib/chains";
@@ -116,7 +117,7 @@ export function ScanRunner({ chain, address, initial }: { chain: ChainKey; addre
       if (running.current) return;
       running.current = true;
       try {
-        const res = await fetch("/api/scan", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain, address, force }) });
+        const res = await fetch(`${API_BASE}/api/scan`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain, address, force }) });
         if (!res.body) throw new Error("no stream");
         if (!res.ok && res.status === 400) {
           setError(await res.json());

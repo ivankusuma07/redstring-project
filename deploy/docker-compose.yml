@@ -1,0 +1,74 @@
+# REDSTRING backend on the VPS. Run from this directory:  docker compose up -d --build
+# TLS + routing come from the existing Caddy on the shared "edge" network (see Caddyfile.snippet).
+name: redstring
+
+services:
+  api:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile
+    image: redstring-api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      DATABASE_URL: postgres://redstring:${POSTGRES_PASSWORD}@postgres:5432/redstring
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      default:
+      edge:
+        aliases: [redstring-api]
+    mem_limit: 2g
+    cpus: 2
+
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: redstring
+      POSTGRES_DB: redstring
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - pg:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U redstring -d redstring"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    mem_limit: 1g
+
+  # Daily: anchor pending seals (no-op until sealing is configured) and dump the database,
+  # keeping 14 days of dumps.
+  cron:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - ${BACKUP_DIR:-/home/ubuntu/backups/redstring}:/backups
+    depends_on: [api]
+    entrypoint: ["/bin/sh", "/cron.sh"]
+    configs:
+      - source: cron
+        target: /cron.sh
+
+configs:
+  cron:
+    content: |
+      while true; do
+        sleep 600
+        wget -qO- --header "Authorization: Bearer $$CRON_SECRET" http://api:3000/api/seal/flush || true
+        pg_dump -h postgres -U redstring redstring | gzip > /backups/redstring-$$(date -u +%Y%m%dT%H%M%SZ).sql.gz
+        find /backups -name 'redstring-*.sql.gz' -mtime +14 -delete
+        sleep 85800
+      done
+
+volumes:
+  pg:
+
+networks:
+  edge:
+    external: true
+    name: ${EDGE_NETWORK:-mochipump_edge}

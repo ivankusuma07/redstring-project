@@ -1,0 +1,11 @@
+node_modules
+.next
+.data
+.git
+.vercel
+e2e-results
+e2e-report
+test-results
+.env*
+!.env.example
+deploy/.env

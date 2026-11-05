@@ -165,8 +165,44 @@ class PgStore implements Store {
   }
 }
 
+// ---- HTTP store (frontend deployment: reads from the backend API) ----------
+/**
+ * When the frontend runs apart from the backend (Vercel + VPS), it has no database. It reads
+ * snapshots through the backend's public read endpoints; only the backend scans and writes.
+ */
+class HttpStore implements Store {
+  constructor(private base: string) {}
+  private async get<T>(path: string): Promise<T | null> {
+    const res = await fetch(`${this.base}${path}`, { cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (res.status === 404) return null;
+    if (!res.ok) throw new Error(`backend ${res.status} for ${path}`);
+    return (await res.json()) as T;
+  }
+  latest(chain: ChainKey, address: string) {
+    return this.get<StoredSnapshot>(`/api/tokens/${chain}/${address.toLowerCase()}`);
+  }
+  async recent(limit: number) {
+    return (await this.get<{ rows: ExploreRow[] }>(`/api/explore?limit=${limit}`))?.rows ?? [];
+  }
+  put(): Promise<void> {
+    throw new Error("read-only store: scans run on the backend (BACKEND_URL)");
+  }
+  pendingSeals(): Promise<StoredSnapshot[]> {
+    throw new Error("read-only store: sealing runs on the backend (BACKEND_URL)");
+  }
+  updateSeal(): Promise<void> {
+    throw new Error("read-only store: sealing runs on the backend (BACKEND_URL)");
+  }
+}
+
+/** Set on the frontend deployment only: the backend origin, e.g. https://api.example.com */
+export const backendUrl = () => process.env.BACKEND_URL?.replace(/\/+$/, "") || null;
+
 const g = globalThis as unknown as { __rsStore?: Store };
 export function store(): Store {
-  if (!g.__rsStore) g.__rsStore = process.env.DATABASE_URL ? new PgStore() : new FileStore();
+  if (!g.__rsStore) {
+    const backend = backendUrl();
+    g.__rsStore = backend ? new HttpStore(backend) : process.env.DATABASE_URL ? new PgStore() : new FileStore();
+  }
   return g.__rsStore;
 }

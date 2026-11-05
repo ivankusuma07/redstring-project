@@ -2,10 +2,21 @@ import Link from "next/link";
 
 export function Logo({ className = "", invert = false }: { className?: string; invert?: boolean }) {
   return (
-    <Link href="/" className={`inline-flex items-center gap-2.5 font-extrabold tracking-[-0.03em] ${invert ? "text-white" : "text-ink"} ${className}`} aria-label="Redstring home">
-      <span aria-hidden className="block size-[0.72em] bg-signal" />
+    <Link href="/" className={`inline-flex items-center gap-2 font-extrabold tracking-[-0.03em] ${invert ? "text-white" : "text-ink"} ${className}`} aria-label="Redstring home">
+      <CrowMark className="h-[1.05em] w-auto -translate-y-[0.08em]" />
       <span>Redstring</span>
     </Link>
+  );
+}
+
+/** Compact crow for the logo and small places: silhouette in the text colour, red eye. */
+export function CrowMark({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="16 12 162 94" className={className} aria-hidden fill="currentColor">
+      <path d="M18 96 L52 74 L86 46 L118 30 L140 26 L150 34 L134 40 L126 62 L106 84 L76 90 L52 92 L40 104 Z" />
+      <path d="M112 26 L130 14 L146 16 L176 26 L146 30 L136 40 Z" />
+      <circle cx="139" cy="21" r="6.5" fill="#d10600" />
+    </svg>
   );
 }
 

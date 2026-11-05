@@ -41,13 +41,24 @@ function CrowSvg({ w }: { w: number }) {
   );
 }
 
+/** Logo crow (same as CrowMark in components/brand). */
+function CrowMarkSvg({ h }: { h: number }) {
+  return (
+    <svg width={Math.round((h * 162) / 94)} height={h} viewBox="16 12 162 94">
+      <path d="M18 96 L52 74 L86 46 L118 30 L140 26 L150 34 L134 40 L126 62 L106 84 L76 90 L52 92 L40 104 Z" fill={INK} />
+      <path d="M112 26 L130 14 L146 16 L176 26 L146 30 L136 40 Z" fill={INK} />
+      <circle cx="139" cy="21" r="6.5" fill={RED} />
+    </svg>
+  );
+}
+
 /** 1200×630 share card: Swiss layout per design screen 09. */
 export function OgCard({ rec }: { rec: StoredSnapshot | null }) {
   if (!rec)
     return (
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%", background: "#fff", border: `14px solid ${INK}`, padding: 56, fontFamily: "Schibsted" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 34, fontWeight: 800 }}>
-          <div style={{ width: 24, height: 24, background: RED }} /> Redstring
+          <CrowMarkSvg h={34} /> Redstring
         </div>
         <div style={{ display: "flex", flexDirection: "column", fontSize: 128, fontWeight: 900, letterSpacing: -6, lineHeight: 0.9 }}>
           <span>Who really</span>
@@ -70,7 +81,7 @@ export function OgCard({ rec }: { rec: StoredSnapshot | null }) {
     <div style={{ display: "flex", width: "100%", height: "100%", background: "#fff", border: `14px solid ${INK}`, padding: "46px 56px", fontFamily: "Schibsted", color: INK }}>
       <div style={{ display: "flex", flexDirection: "column", width: 650 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 800 }}>
-          <div style={{ width: 22, height: 22, background: RED }} /> Redstring
+          <CrowMarkSvg h={30} /> Redstring
         </div>
         <div style={{ fontFamily: "Mono", fontSize: 21, marginTop: 26 }}>
           {`${CHAINS[s.chain].name} · block ${s.blockNumber.toLocaleString("en-US")}`}

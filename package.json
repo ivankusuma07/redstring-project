@@ -13,7 +13,8 @@
     "typecheck": "tsc --noEmit",
     "test": "tsx --test \"test/**/*.test.ts\"",
     "build:labels": "tsx scripts/build-labels.ts",
-    "deploy:anchor": "tsx scripts/deploy-anchor.ts"
+    "deploy:anchor": "tsx scripts/deploy-anchor.ts",
+    "build:icons": "node scripts/build-icons.mjs"
   },
   "dependencies": {
     "d3-force": "^3.0.1",

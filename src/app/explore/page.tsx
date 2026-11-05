@@ -5,8 +5,7 @@ import { Suspense } from "react";
 import { SiteFooter } from "@/components/brand";
 import { AppHeader } from "@/components/headers";
 import { categoryOf } from "@/lib/categories";
-import { exampleRecord } from "@/lib/service";
-import { rowOf, store } from "@/lib/store";
+import { store } from "@/lib/store";
 import { ExploreTable, type Row } from "./explore-table";
 
 export const metadata: Metadata = { title: "Explore", description: "Recently scanned tokens across Robinhood Chain, Base and Ethereum." };
@@ -16,11 +15,10 @@ async function Rows() {
   const recent = await store()
     .recent(300)
     .catch(() => []);
-  const ex = rowOf(exampleRecord());
-  const rows: Row[] = [...recent, ex].map((r) => ({
+  const rows: Row[] = recent.map((r) => ({
     chain: r.chain,
     address: r.address,
-    href: r.id === "example" ? "/robinhood/example" : `/${r.chain}/${r.address}`,
+    href: `/${r.chain}/${r.address}`,
     symbol: r.symbol,
     score: r.score,
     level: r.level,
@@ -30,7 +28,7 @@ async function Rows() {
     holders: r.holders,
     scannedAt: r.scannedAt,
     category: categoryOf(r.chain, r.address),
-    example: r.id === "example",
+    example: false,
   }));
   return <ExploreTable rows={rows} pinned={<Pinned />} />;
 }

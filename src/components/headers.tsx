@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { FEATURED_HREF } from "@/lib/featured";
 import { Logo } from "./brand";
 import { HeaderSearch, MobileSearch } from "./search";
 
@@ -9,7 +10,7 @@ export function SiteHeader() {
       <div className="flex items-center justify-between py-6">
         <Logo className="text-2xl md:text-[28px]" />
         <nav className="flex items-center gap-4 font-mono text-sm md:gap-9">
-          <Link href="/robinhood/example" className="hidden hover:text-signal sm:block">
+          <Link href={FEATURED_HREF} className="hidden hover:text-signal sm:block">
             01 Map
           </Link>
           <Link href="/explore" className="hidden hover:text-signal sm:block">

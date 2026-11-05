@@ -1,9 +1,10 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { AppHeader } from "@/components/headers";
 import { ScanLoading, ScanRunner } from "@/components/token/scan-runner";
 import { isChainKey } from "@/lib/chains";
+import { FEATURED_HREF } from "@/lib/featured";
 import { isAddress } from "@/lib/format";
 import { getStored } from "@/lib/service";
 
@@ -23,7 +24,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 async function TokenLoader({ params }: Pick<Props, "params">) {
   const { chain, address } = await params;
   const addr = address.toLowerCase();
-  if (!isChainKey(chain) || !(isAddress(addr) || addr === "example")) notFound();
+  if (addr === "example") redirect(FEATURED_HREF); // the old illustrative sample now points at a real token
+  if (!isChainKey(chain) || !isAddress(addr)) notFound();
   const initial = await getStored(chain, addr);
   return <ScanRunner chain={chain} address={addr} initial={initial} />;
 }

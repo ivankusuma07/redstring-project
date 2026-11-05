@@ -4,8 +4,9 @@ import { HolderGraph } from "@/components/graph/holder-graph";
 import { SiteHeader } from "@/components/headers";
 import { HeroSearch } from "@/components/search";
 import { SupplyBar } from "@/components/supply-bar";
-import { exampleSnapshot } from "@/lib/scan/example";
-import type { SupplySegment } from "@/lib/types";
+import { CHAINS } from "@/lib/chains";
+import { FEATURED_HREF, featuredSnapshot } from "@/lib/featured";
+import type { Snapshot, SupplySegment } from "@/lib/types";
 
 const STEPS = [
   ["01", "Scan", "Top 250 holders, labelled: exchange, pool, burn, contract, deployer."],
@@ -13,17 +14,21 @@ const STEPS = [
   ["03", "Seal", "The result is hashed and anchored on Robinhood Chain. Verifiable forever."],
 ] as const;
 
-export default function Home() {
-  const ex = exampleSnapshot();
-  const [g1, g2] = ex.clusters;
-  const seg = (k: string) => ex.supply.segments.find((s) => s.key === k)!;
-  const landing: SupplySegment[] = [
-    { ...seg("g1"), label: `Case 1 · ${g1.launchBuyers ? "sniper ring" : "linked"}` },
-    { ...seg("g2"), label: `Case 2 · ${g2.deployerLinked ? "deployer" : "linked"}` },
-    { ...seg("dex"), label: "DEX pool (exempt)" },
-    { ...seg("cex"), label: "CEX (exempt)" },
-    { key: "free", kind: "free", label: "Free float", pct: Math.round(100 - g1.pct - g2.pct - seg("dex").pct - seg("cex").pct) },
-  ];
+/** The snapshot's own supply split, with group segments named after what links them. */
+function landingSegments(s: Snapshot): SupplySegment[] {
+  return s.supply.segments.map((seg) => {
+    const c = seg.kind === "group" ? s.clusters.find((x) => `g${x.id}` === seg.key) : undefined;
+    if (c) return { ...seg, label: `Group ${c.id} · ${c.launchBuyers ? "sniper ring" : c.deployerLinked ? "deployer" : "linked"}` };
+    if (seg.kind === "dex" || seg.kind === "cex" || seg.kind === "burn" || seg.kind === "bridge") return { ...seg, label: `${seg.label} (exempt)` };
+    return seg;
+  });
+}
+
+export default async function Home() {
+  const { snapshot: ex, real } = await featuredSnapshot();
+  const mapHref = real ? FEATURED_HREF : "/robinhood/example";
+  const landing = landingSegments(ex);
+  const sampleName = `$${ex.token.symbol}`;
 
   return (
     <>
@@ -45,8 +50,8 @@ export default function Home() {
             <HeroSearch />
             <p className="mt-3 font-mono text-xs">
               Or open the{" "}
-              <Link href="/robinhood/example" className="underline underline-offset-4 hover:text-signal">
-                example map
+              <Link href={mapHref} className="underline underline-offset-4 hover:text-signal">
+                {sampleName} map
               </Link>
               .
             </p>
@@ -57,7 +62,9 @@ export default function Home() {
         {/* live map */}
         <section className="grid grid-cols-12 gap-6 py-14">
           <div className="col-span-12 lg:col-span-4">
-            <div className="font-mono text-sm">Live sample · $EXAMPLE</div>
+            <div className="font-mono text-sm">
+              Live sample · {sampleName} · {CHAINS[ex.chain].name}
+            </div>
             <h2 className="display mt-4 text-[56px] md:text-[72px]">
               No line,
               <br />
@@ -67,7 +74,7 @@ export default function Home() {
               Black dots are wallets, sized by balance. Red lines are token transfers between them, dashed lines a shared gas funder. Grey rings are exchanges and pools, set aside so
               they never fake a cluster.
             </p>
-            <Link href="/robinhood/example" className="mt-8 inline-flex h-14 items-center bg-ink px-7 font-extrabold text-white hover:bg-signal">
+            <Link href={mapHref} className="mt-8 inline-flex h-14 items-center bg-ink px-7 font-extrabold text-white hover:bg-signal">
               Open the full map →
             </Link>
           </div>
@@ -85,7 +92,9 @@ export default function Home() {
               <br />
               honestly.
             </h2>
-            <p className="col-span-12 font-mono text-sm leading-relaxed md:col-span-5 md:col-start-8">Example token. Exchange and pool wallets are set aside so they never fake a cluster.</p>
+            <p className="col-span-12 font-mono text-sm leading-relaxed md:col-span-5 md:col-start-8">
+              {sampleName} at block {ex.blockNumber.toLocaleString("en-US")}. Exchange and pool wallets are set aside so they never fake a cluster.
+            </p>
           </div>
           <div className="mt-8">
             <SupplyBar segments={landing} height="h-[104px]" border="border-[3px]" big />

@@ -30,6 +30,8 @@ export interface RawScan {
   labels: Record<string, RawLabel>;
   transfers: RawTransfer[]; // may be partial, see transfersComplete
   transfersComplete: boolean;
+  /** Share of the token's block range whose transfers were read (1 when complete). */
+  historyCoverage?: number;
   funders: Record<string, string> | null; // holder -> first native funder
   blockTimes: Record<number, number>; // block -> unix seconds
   market: MarketData | null;

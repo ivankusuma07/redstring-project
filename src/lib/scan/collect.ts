@@ -1,6 +1,7 @@
 import { CHAINS } from "../chains";
 import type { ChainKey, ScanEvent } from "../types";
 import { hotWalletNonce, hubCandidates, inferHubs, labelFromNames, seedLabel } from "./labels";
+import { memoryHistory, readHistory, type HistoryResult, type HistoryStore } from "./history";
 import { ZERO, type RawHolder, type RawLabel, type RawScan, type RawTransfer } from "./raw";
 import * as al from "./sources/alchemy";
 import * as bs from "./sources/blockscout";
@@ -9,7 +10,6 @@ import * as hs from "./sources/hypersync";
 import * as rpc from "./sources/rpc";
 
 export const HOLDER_LIMIT = 250;
-const MAX_REPLAY_LOGS = 400_000;
 
 export class ScanError extends Error {
   constructor(
@@ -25,7 +25,17 @@ type Emit = (e: ScanEvent) => void;
 /** Time one scan may spend collecting. 170 s fits a 300 s serverless limit; a VPS can allow more. */
 const SCAN_BUDGET_MS = Number(process.env.SCAN_BUDGET_MS) || 170_000;
 
-export async function collect(chain: ChainKey, address: string, emit: Emit, budgetMs = SCAN_BUDGET_MS): Promise<RawScan> {
+/** Time kept after the history read for balances, labels and gas funders. */
+const RESERVE_MS = 60_000;
+
+export async function collect(
+  chain: ChainKey,
+  address: string,
+  emit: Emit,
+  opts: { budgetMs?: number; store?: HistoryStore } = {},
+): Promise<RawScan> {
+  const budgetMs = opts.budgetMs ?? SCAN_BUDGET_MS;
+  const store = opts.store ?? memoryHistory();
   const token = address.toLowerCase();
   const deadline = Date.now() + budgetMs;
   const sources: string[] = [];
@@ -66,136 +76,65 @@ export async function collect(chain: ChainKey, address: string, emit: Emit, budg
     }
   }
 
-  let transfers: RawTransfer[] = [];
-  let complete = false;
-  // Incomplete history kept for rebuilding the holder list when nothing else has one
-  let partial = null as { transfers: RawTransfer[]; coverage: number; source: string; first: RawTransfer | null } | null; // assigned in closures below
-  let rebuilt = false;
-  let blockTimes: Record<number, number> = {};
+  // ---- transfer history: stored chunks + whatever is new since the last scan ----
   const onProgress = (p: number) => emit({ type: "stage", stage: "holders", status: "running", progress: Math.min(0.95, 0.3 + p * 0.65) });
-
-  const viaHypersync = async () => {
-    if (!hs.hypersyncEnabled() || complete) return;
-    try {
-      const r = await hs.transfers(chain, token, latest, { maxLogs: MAX_REPLAY_LOGS * 5, deadline, onProgress });
-      transfers = r.transfers;
-      blockTimes = r.blockTimes;
-      complete = r.complete;
-      sources.push("HyperSync");
-    } catch (e) {
-      limits.push(`HyperSync failed: ${(e as Error).message}`);
-    }
-  };
-  const viaRpc = async () => {
-    if (complete || Date.now() > deadline - 20_000) return; // no time left for a slow replay
-    try {
-      deployBlock = await rpc.findDeployBlock(chain, token, latest);
-      transfers = await rpc.replayTransfers(chain, token, deployBlock, latest, { maxLogs: MAX_REPLAY_LOGS, deadline, onProgress });
-      complete = true;
-      if (!sources.includes("RPC log replay")) sources.push("RPC log replay");
-    } catch (e) {
-      if (!(e instanceof rpc.TooLargeError)) limits.push(`Log replay failed: ${(e as Error).message}`);
-      transfers = [];
-    }
-  };
-  const viaAlchemy = async () => {
-    if (!al.alchemyEnabled(chain) || complete) return;
-    try {
-      const r = await al.transfers(chain, token, latest, { maxLogs: MAX_REPLAY_LOGS * 5, deadline: deadline - 75_000, onProgress }); // leave time for balances, labels and funders
-      if (r.complete) {
-        transfers = r.transfers;
-        complete = true;
-        if (r.firstBlock != null) deployBlock = r.firstBlock;
-        sources.push("Alchemy");
-      } else {
-        partial = { transfers: r.transfers, coverage: r.coverage, source: "Alchemy", first: r.firstTransfer };
-        limits.push(`Alchemy transfer history incomplete (${r.stopped === "time" ? "time limit" : r.stopped === "size" ? "size limit" : r.stopped}).`);
-      }
-    } catch (e) {
-      limits.push(`Alchemy failed: ${(e as Error).message}`);
-    }
-  };
-  // Chains whose RPC serves huge eth_getLogs ranges (Robinhood Chain) replay history for free and
-  // keep the rate-limited HyperSync budget for gas funders. Elsewhere: Alchemy's Transfers API,
-  // then HyperSync, then public-RPC replay.
-  if (CHAINS[chain].logRange >= 1_000_000) {
-    await viaRpc();
-    await viaHypersync();
-  } else {
-    await viaAlchemy();
-    // HyperSync's rate limit can't finish what Alchemy couldn't in the time left; skip it then.
-    if (!al.alchemyEnabled(chain)) await viaHypersync();
-    await viaRpc();
+  let history: HistoryResult | null = null;
+  try {
+    // keep time for balances, labels and funders after the read
+    history = await readHistory(chain, token, latest, { store, deadline: deadline - Math.min(RESERVE_MS, budgetMs * 0.3), onProgress });
+    if (history.source && history.transfers.length && !sources.includes(history.source)) sources.push(history.source);
+  } catch (e) {
+    console.warn("[scan] history read failed", chain, token, e);
+    limits.push(`Transfer history unavailable: ${(e as Error).message}`);
   }
+  let transfers: RawTransfer[] = history?.transfers ?? [];
+  const complete = !!history?.complete;
+  const coverage = history?.coverage ?? 0;
+  const pctRead = `${Math.floor(coverage * 100)}% of the token's block range`;
 
-  // No holder list and only part of the history: take the biggest net receivers in what was read
-  // and check their real balances on-chain. Balances are exact; holders whose only receipts fall in
-  // the unread range are missed, which the scan states.
-  if (!holders.length && !complete && partial && partial.transfers.length) {
-    const approx = [...rpc.balancesFrom(partial.transfers)].filter(([a, b]) => b > 0n && a !== ZERO);
-    approx.sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0));
-    const candidates = approx.slice(0, HOLDER_LIMIT * 4).map(([a]) => a);
-    const exact = await rpc.balancesOf(chain, token, candidates, latest).catch(() => new Map<string, bigint>());
-    const top = [...exact].filter(([, b]) => b > 0n).sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0)).slice(0, HOLDER_LIMIT);
-    if (top.length) {
-      const codes = await rpc.getCodes(chain, top.map(([a]) => a));
-      holders = top.map(([a, b]) => ({ address: a, balance: b, isContract: codes[a] ?? false }));
-      transfers = partial.transfers;
-      rebuilt = true;
-      sources.push(partial.source);
-      // replace the per-source "incomplete/failed" notes with one statement of what this scan covers
-      const keep = limits.filter((l) => !/^(Alchemy transfer history incomplete|HyperSync failed|Log replay failed)/.test(l));
-      limits.splice(0, limits.length, ...keep);
-      limits.push(
-        `Holder list rebuilt from ${partial.transfers.length.toLocaleString("en-US")} transfers (${Math.round(partial.coverage * 100)}% of the token's block range); balances checked on-chain. Holders who only received tokens in the unread range are missing, and launch-block buyers were not checked.`,
-      );
-    }
-  }
-
-  if (!holders.length) {
-    if (!complete)
-      throw new ScanError(
-        "too_large",
-        hs.hypersyncEnabled()
-          ? `This token has more transfer history than the current data plan can read in one scan, and no holder list is available for ${CHAINS[chain].name}. It needs Blockscout coverage for this chain or a higher HyperSync rate limit.`
-          : "This token has too much history to replay over a public RPC. Set BLOCKSCOUT_API_KEY or HYPERSYNC_TOKEN to scan it.",
-      );
-    const bal = rpc.balancesFrom(transfers);
-    const positive = [...bal].filter(([a, b]) => b > 0n && a !== ZERO);
+  if (!holders.length && complete) {
+    // Full history: balances are exact
+    const positive = [...rpc.balancesFrom(transfers)].filter(([a, b]) => b > 0n && a !== ZERO);
     holderCount = positive.length;
     positive.sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0));
     const top = positive.slice(0, HOLDER_LIMIT);
     const codes = await rpc.getCodes(chain, top.map(([a]) => a));
     holders = top.map(([a, b]) => ({ address: a, balance: b, isContract: codes[a] ?? false }));
-  }
-  if (!complete && !rebuilt && holders.length && partial?.transfers.length) {
-    transfers = partial.transfers;
-    if (!sources.includes(partial.source)) sources.push(partial.source);
-    const keep = limits.filter((l) => !/^(Alchemy transfer history incomplete|HyperSync failed|Log replay failed)/.test(l));
-    limits.splice(0, limits.length, ...keep);
-    limits.push(
-      `Links use ${partial.transfers.length.toLocaleString("en-US")} transfers (${Math.round(partial.coverage * 100)}% of the token's block range); the rest of the history was not read in time. Launch-block buyers not checked.`,
-    );
-  } else if (!complete && holders.length && bs.blockscoutEnabled(chain)) {
+  } else if (!holders.length && transfers.length) {
+    // Partial history and no holder list: the biggest net receivers in what was read, with their
+    // real balances checked on-chain. Holders whose only receipts are in the unread range are missed.
+    const approx = [...rpc.balancesFrom(transfers)].filter(([a, b]) => b > 0n && a !== ZERO);
+    approx.sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0));
+    const candidates = approx.slice(0, HOLDER_LIMIT * 4).map(([a]) => a);
+    const exact = await rpc.balancesOf(chain, token, candidates, latest).catch(() => new Map<string, bigint>());
+    const top = [...exact].filter(([, b]) => b > 0n).sort((x, y) => (y[1] > x[1] ? 1 : y[1] < x[1] ? -1 : 0)).slice(0, HOLDER_LIMIT);
+    const codes = top.length ? await rpc.getCodes(chain, top.map(([a]) => a)) : {};
+    holders = top.map(([a, b]) => ({ address: a, balance: b, isContract: codes[a] ?? false }));
+    if (holders.length)
+      limits.push(
+        `Preliminary: holder list rebuilt from ${transfers.length.toLocaleString("en-US")} transfers (${pctRead}); balances checked on-chain. Holders who only received tokens in the unread range are missing, and launch-block buyers were not checked.`,
+      );
+  } else if (holders.length && !complete && transfers.length) {
+    limits.push(`Preliminary: links use ${transfers.length.toLocaleString("en-US")} transfers (${pctRead}); the rest of the history is still being read. Launch-block buyers not checked.`);
+  } else if (holders.length && !transfers.length && bs.blockscoutEnabled(chain)) {
     transfers = await bs.recentTransfers(chain, token, 20).catch(() => []);
     limits.push(`Full transfer history unavailable; links use the latest ${transfers.length.toLocaleString("en-US")} transfers only. Launch-block buyers not checked.`);
   }
-  if (!holders.length) throw new ScanError("not_found", "This token has no holders yet.");
+
+  if (!holders.length) {
+    if (!transfers.length && !complete)
+      throw new ScanError("too_large", `No data source could read this token's history on ${CHAINS[chain].name} right now. Try again shortly.`);
+    throw new ScanError("not_found", "This token has no holders yet.");
+  }
 
   // Deployer = the account that sent the first mint. Explorers report the creating *contract* for
   // tokens made by a launchpad factory, which would hide the person who launched it.
-  if (complete) {
-    const firstMint = [...transfers].sort((a, b) => a.block - b.block).find((t) => t.from === ZERO && t.tx);
-    const sender = firstMint?.tx ? await rpc.txSender(chain, firstMint.tx).catch(() => null) : null;
+  const firstMint = history?.first?.from === ZERO && history.first.tx ? history.first : complete ? transfers.find((t) => t.from === ZERO && t.tx) : undefined;
+  if (firstMint?.tx) {
+    const sender = await rpc.txSender(chain, firstMint.tx).catch(() => null);
     if (sender) deployer = sender.toLowerCase();
-    if (firstMint && deployBlock == null) deployBlock = firstMint.block;
   }
-  // Partial history still knows the token's very first transfer; if it is a mint, its sender is the deployer.
-  if (!complete && partial?.first?.from === ZERO && partial.first.tx) {
-    const sender = await rpc.txSender(chain, partial.first.tx).catch(() => null);
-    if (sender) deployer = sender.toLowerCase();
-    if (deployBlock == null) deployBlock = partial.first.block;
-  }
+  deployBlock = history?.firstBlock ?? firstMint?.block ?? null;
   if (deployer && (await rpc.getCodes(chain, [deployer]).catch(() => ({}) as Record<string, boolean>))[deployer]) deployer = null;
   emit({ type: "stage", stage: "holders", status: "done", detail: `${holders.length}` });
 
@@ -224,27 +163,37 @@ export async function collect(chain: ChainKey, address: string, emit: Emit, budg
   emit({ type: "stage", stage: "links", status: "running", progress: 0.1 });
   let funders: Record<string, string> | null = null;
   const wallets = holders.filter((h) => !h.isContract && !labels[h.address]?.type.match(/cex|dex|burn|bridge/)).map((h) => h.address);
-  if (al.alchemyEnabled(chain)) {
+  // A wallet's first funder never changes once it exists: reuse what earlier scans found.
+  const cached = await store.funders(chain, wallets).catch(() => ({}) as Record<string, string>);
+  const missing = wallets.filter((w) => !cached[w]);
+  const funderDeadline = Math.max(deadline, Date.now() + 45_000);
+  let found: Record<string, string> | null = null;
+  if (!missing.length) found = {};
+  else if (al.alchemyEnabled(chain)) {
     try {
-      const r = await al.firstFunders(chain, wallets, latest, Math.max(deadline, Date.now() + 45_000));
-      funders = r.funders;
+      const r = await al.firstFunders(chain, missing, latest, funderDeadline);
+      found = r.funders;
       if (!sources.includes("Alchemy")) sources.push("Alchemy");
-      if (r.checked < wallets.length) limits.push(`Gas funders checked for ${r.checked} of ${wallets.length} wallets (time limit).`);
-      emit({ type: "stage", stage: "links", status: "running", progress: 0.7 });
+      if (r.checked < missing.length) limits.push(`Gas funders checked for ${wallets.length - missing.length + r.checked} of ${wallets.length} wallets (time limit).`);
     } catch (e) {
       limits.push(`Gas-funder lookup failed: ${(e as Error).message}`);
     }
   } else if (hs.hypersyncEnabled()) {
     try {
-      funders = await hs.firstFunders(chain, wallets, latest, deadline);
+      found = await hs.firstFunders(chain, missing, latest, funderDeadline);
       if (!sources.includes("HyperSync")) sources.push("HyperSync");
-      emit({ type: "stage", stage: "links", status: "running", progress: 0.7 });
     } catch (e) {
       limits.push(`Gas-funder lookup failed: ${(e as Error).message}`);
     }
   } else limits.push("Shared gas funders not checked (needs HYPERSYNC_TOKEN or an Alchemy RPC).");
+  if (found) {
+    await store.saveFunders(chain, found).catch(() => undefined);
+    funders = { ...cached, ...found };
+  } else if (Object.keys(cached).length) funders = cached;
+  emit({ type: "stage", stage: "links", status: "running", progress: 0.7 });
   if (funders) Object.assign(labels, await labelFunders(chain, funders, labels));
 
+  const blockTimes: Record<number, number> = {};
   if (complete) {
     const holderSet = new Set(holders.map((h) => h.address));
     const first = new Map<string, number>();
@@ -273,6 +222,7 @@ export async function collect(chain: ChainKey, address: string, emit: Emit, budg
     labels,
     transfers,
     transfersComplete: complete,
+    historyCoverage: coverage,
     funders,
     blockTimes,
     market,

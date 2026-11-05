@@ -19,7 +19,7 @@ const STAGES: [ScanStage, string][] = [
 ];
 const initialStages = () => Object.fromEntries(STAGES.map(([k]) => [k, { status: "waiting" }])) as Record<ScanStage, StageState>;
 
-export function ScanLoading({ stages = initialStages() }: { stages?: Record<ScanStage, StageState> }) {
+export function ScanLoading({ stages = initialStages(), queued = null }: { stages?: Record<ScanStage, StageState>; queued?: number | null }) {
   return (
     <div className="mx-auto w-full max-w-[560px] px-5 py-16" aria-live="polite" data-testid="scan-loading">
       <div className="font-mono text-xs">01 · Loading</div>
@@ -29,6 +29,11 @@ export function ScanLoading({ stages = initialStages() }: { stages?: Record<Scan
         <br />
         string…
       </h1>
+      {queued != null && (
+        <p className="mt-6 font-mono text-sm" role="status">
+          In the queue · {queued === 0 ? "starting next" : `${queued} scan${queued === 1 ? "" : "s"} ahead`}
+        </p>
+      )}
       <ul className="mt-8 border-t-2 border-ink">
         {STAGES.map(([k, label]) => {
           const st = stages[k];
@@ -106,66 +111,108 @@ function ScanFailed({ message, onRetry }: { message: string; onRetry: () => void
   );
 }
 
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
 export function ScanRunner({ chain, address, initial }: { chain: ChainKey; address: string; initial: StoredSnapshot | null }) {
   const [rec, setRec] = useState<StoredSnapshot | null>(initial);
   const [stages, setStages] = useState(initialStages);
+  const [queued, setQueued] = useState<number | null>(null);
+  const [reading, setReading] = useState<{ progress?: number } | null>(null);
   const [error, setError] = useState<Extract<ScanEvent, { type: "error" }> | null>(null);
   const running = useRef(false);
+
+  /** One request: returns true once the scan has finished (done or error), false if the stream dropped. */
+  const attempt = useCallback(
+    async (force: boolean): Promise<boolean> => {
+      const res = await fetch(`${API_BASE}/api/scan`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain, address, force }) });
+      if (res.status === 400) {
+        setError(await res.json());
+        return true;
+      }
+      if (!res.body) return false;
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = "";
+      let prelim = false;
+      for (;;) {
+        const { value, done } = await reader.read();
+        if (done) return false;
+        buf += dec.decode(value, { stream: true });
+        let i: number;
+        while ((i = buf.indexOf("\n")) >= 0) {
+          const line = buf.slice(0, i).trim();
+          buf = buf.slice(i + 1);
+          if (!line) continue; // heartbeat
+          const ev = JSON.parse(line) as ScanEvent;
+          if (ev.type === "queued") setQueued(ev.position);
+          else if (ev.type === "stage") {
+            setQueued(null);
+            setStages((p) => ({ ...p, [ev.stage]: { status: ev.status, detail: ev.detail ?? p[ev.stage].detail, progress: ev.progress } }));
+            if (prelim && ev.stage === "holders" && ev.status === "running") setReading({ progress: ev.progress });
+          } else if (ev.type === "preliminary") {
+            prelim = true;
+            setRec(ev.data);
+            setReading({});
+          } else if (ev.type === "done") {
+            setRec(ev.data);
+            setReading(null);
+            return true;
+          } else {
+            setReading(null);
+            setError(ev);
+            return true;
+          }
+        }
+      }
+    },
+    [chain, address],
+  );
 
   const scan = useCallback(
     async (force: boolean) => {
       if (running.current) return;
       running.current = true;
       try {
-        const res = await fetch(`${API_BASE}/api/scan`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ chain, address, force }) });
-        if (!res.body) throw new Error("no stream");
-        if (!res.ok && res.status === 400) {
-          setError(await res.json());
-          return;
-        }
-        const reader = res.body.getReader();
-        const dec = new TextDecoder();
-        let buf = "";
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          buf += dec.decode(value, { stream: true });
-          let i: number;
-          while ((i = buf.indexOf("\n")) >= 0) {
-            const line = buf.slice(0, i).trim();
-            buf = buf.slice(i + 1);
-            if (!line) continue;
-            const ev = JSON.parse(line) as ScanEvent;
-            if (ev.type === "stage") setStages((p) => ({ ...p, [ev.stage]: { status: ev.status, detail: ev.detail ?? p[ev.stage].detail, progress: ev.progress } }));
-            else if (ev.type === "done") setRec(ev.data);
-            else setError(ev);
+        // Scans run as server-side jobs: if the connection drops, reconnecting follows the same job.
+        for (let tries = 0; ; tries++) {
+          let finished = false;
+          try {
+            finished = await attempt(force && tries === 0);
+          } catch {
+            // network error: retry below
           }
+          if (finished) return;
+          if (tries >= 5) {
+            setReading(null);
+            setError({ type: "error", code: "failed", message: "Lost the connection while scanning. Try again." });
+            return;
+          }
+          await sleep(2_000 * (tries + 1));
         }
-      } catch {
-        setError({ type: "error", code: "failed", message: "Lost the connection while scanning. Try again." });
       } finally {
         running.current = false;
       }
     },
-    [chain, address],
+    [attempt],
   );
 
   useEffect(() => {
     // Starts a streaming fetch; state updates happen asynchronously as events arrive.
-    // eslint-disable-next-line react-hooks/set-state-in-effect
-    if (!initial) scan(false);
+    // A preliminary snapshot means the history is still (or should keep) being read: follow that job.
+    if (!initial || initial.seal.status === "preliminary") scan(false);
   }, [initial, scan]);
 
   const restart = (force: boolean) => {
     if (running.current) return;
     setError(null);
     setStages(initialStages());
-    setRec(null);
+    setQueued(null);
+    if (rec?.seal.status !== "preliminary") setRec(null);
     scan(force);
   };
 
-  if (rec) return <TokenView key={rec.id + rec.snapshot.createdAt} rec={rec} onRescan={() => restart(true)} />;
+  if (rec) return <TokenView key={rec.id + rec.snapshot.createdAt} rec={rec} onRescan={() => restart(true)} reading={reading} />;
   if (error?.code === "not_found") return <NotFoundToken chain={chain} address={address} />;
   if (error) return <ScanFailed message={error.message} onRetry={() => restart(false)} />;
-  return <ScanLoading stages={stages} />;
+  return <ScanLoading stages={stages} queued={queued} />;
 }

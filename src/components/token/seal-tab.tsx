@@ -13,9 +13,20 @@ export function SealTab({ rec }: { rec: StoredSnapshot }) {
   const fileName = `${s.token.symbol.toLowerCase()}-${s.blockNumber}.json`;
   const download = `/api/snapshot/${s.chain}/${s.example ? "example" : s.token.address}`;
 
-  const heading = sealed ? "Sealed." : seal.status === "pending" ? "Sealing." : seal.status === "example" ? "Example." : "Hashed.";
-  const badge = sealed ? "Verified on-chain" : seal.status === "pending" ? "Queued for the next batch" : seal.status === "example" ? "Example data · never sealed" : "Not anchored";
-  const body = sealed
+  const prelim = seal.status === "preliminary";
+  const heading = sealed ? "Sealed." : seal.status === "pending" ? "Sealing." : seal.status === "example" ? "Example." : prelim ? "Not yet." : "Hashed.";
+  const badge = sealed
+    ? "Verified on-chain"
+    : seal.status === "pending"
+      ? "Queued for the next batch"
+      : seal.status === "example"
+        ? "Example data · never sealed"
+        : prelim
+          ? "Preliminary · not sealed"
+          : "Not anchored";
+  const body = prelim
+    ? `This map was built from ${Math.floor((s.history?.coverage ?? 0) * 100)}% of the token's transfer history, so it is not sealed. The full map is sealed once the rest of the history has been read.`
+    : sealed
     ? `This map was hashed and written to ${rh.name}. Anyone can prove what it showed at block ${s.blockNumber.toLocaleString("en-US")}, and that it hasn't been edited since.`
     : seal.status === "pending"
       ? `This map has been hashed. The hash joins the next Merkle batch anchored on ${rh.name}; the transaction appears here once it confirms.`

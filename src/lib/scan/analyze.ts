@@ -263,6 +263,7 @@ export function analyze(raw: RawScan): Snapshot {
     supply: { linked, exempt, free, top250, segments },
     sources: raw.sources,
     limits: raw.limits,
+    history: { complete: raw.transfersComplete, coverage: raw.transfersComplete ? 1 : Math.round((raw.historyCoverage ?? 0) * 1000) / 1000 },
     ...(raw.example ? { example: true } : {}),
   };
   return { ...partial, score: computeScore(partial) };

@@ -60,6 +60,7 @@ configs:
       while true; do
         sleep 600
         wget -qO- --header "Authorization: Bearer $$CRON_SECRET" http://api:3000/api/seal/flush || true
+        wget -qO- -T 60 --header "Authorization: Bearer $$CRON_SECRET" http://api:3000/api/jobs/prewarm || true
         pg_dump -h postgres -U redstring redstring | gzip > /backups/redstring-$$(date -u +%Y%m%dT%H%M%SZ).sql.gz
         find /backups -name 'redstring-*.sql.gz' -mtime +14 -delete
         sleep 85800

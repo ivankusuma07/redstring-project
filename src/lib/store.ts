@@ -1,6 +1,7 @@
 import "server-only";
 import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
+import { db } from "./db";
 import type { ChainKey, RiskLevel, Seal, StoredSnapshot } from "./types";
 
 export interface ExploreRow {
@@ -89,38 +90,7 @@ class FileStore implements Store {
 
 // ---- Postgres store (production) -----------------------------------------
 class PgStore implements Store {
-  private sql: import("postgres").Sql | null = null;
-  private ready: Promise<void> | null = null;
-  private async db() {
-    if (!this.sql) {
-      const { default: postgres } = await import("postgres");
-      this.sql = postgres(process.env.DATABASE_URL!, { max: 5, prepare: false });
-    }
-    if (!this.ready) this.ready = this.migrate();
-    await this.ready;
-    return this.sql;
-  }
-  private async migrate() {
-    const sql = this.sql!;
-    await sql`create table if not exists snapshots (
-      id text primary key,
-      chain text not null,
-      address text not null,
-      symbol text not null,
-      created_at timestamptz not null,
-      block_number bigint not null,
-      score int not null,
-      risk_level text not null,
-      top_cluster_pct real not null,
-      holder_count int,
-      snapshot_hash text not null,
-      seal_status text not null,
-      graph_json jsonb not null,
-      seal_json jsonb not null
-    )`;
-    await sql`create index if not exists snapshots_token_idx on snapshots (chain, address, created_at desc)`;
-    await sql`create index if not exists snapshots_seal_idx on snapshots (seal_status) where seal_status = 'pending'`;
-  }
+  private db = db;
   async latest(chain: ChainKey, address: string) {
     const sql = await this.db();
     const rows = await sql`select graph_json, seal_json, id from snapshots where chain = ${chain} and address = ${address.toLowerCase()} order by created_at desc limit 1`;

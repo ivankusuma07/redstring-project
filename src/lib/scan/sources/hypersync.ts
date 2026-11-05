@@ -102,7 +102,7 @@ export async function transfers(
   chain: ChainKey,
   tokenAddr: string,
   toBlock: number,
-  opts: { maxLogs: number; deadline: number; onProgress?: (p: number) => void },
+  opts: { maxLogs: number; deadline: number; onProgress?: (p: number) => void; fromBlock?: number },
 ): Promise<{
   transfers: RawTransfer[];
   blockTimes: Record<number, number>;
@@ -110,7 +110,7 @@ export async function transfers(
 }> {
   const out: RawTransfer[] = [];
   const times: Record<number, number> = {};
-  let from = 0;
+  let from = opts.fromBlock ?? 0;
   while (from < toBlock) {
     if (Date.now() > opts.deadline || out.length > opts.maxLogs)
       return { transfers: out, blockTimes: times, complete: false };

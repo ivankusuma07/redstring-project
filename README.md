@@ -115,6 +115,16 @@ browser ──► Vercel (Next.js pages, OG images)      BACKEND_URL / NEXT_PUBL
 | Gas funders | HyperSync | Alchemy | Alchemy |
 | Fallbacks | HyperSync history | HyperSync, then public RPC replay | HyperSync, then public RPC replay |
 
-Free tiers bound what one scan reads (HyperSync ~15 queries/min, Alchemy ~4,000 transfers/s). Tokens
-with more history than fits in `SCAN_BUDGET_MS` are scanned from the part read in time, and the
-scan's limits say how much (e.g. "89% of the token's block range").
+Free tiers bound what one scan reads (HyperSync ~15 queries/min, Alchemy ~4,000 transfers/s), so
+the backend keeps what it reads:
+
+- **Stored history.** Each token's Transfer log is saved in Postgres as gzip chunks per closed block
+  range (`transfer_chunks`). A scan reads only the gaps and the newest blocks; the last 50 blocks are
+  re-read every time and never stored (reorgs). Gas funders are cached per wallet (`wallet_funders`).
+- **Background jobs.** `/api/scan` enqueues a job (`scan_jobs`) and streams its progress; workers start
+  with the server (`src/instrumentation.ts`). A dropped connection just reconnects to the same job.
+- **Preliminary maps.** If the history isn't fully read within `SCAN_BUDGET_MS`, a *preliminary* map is
+  stored and shown with a banner ("built from 70% of the token's transfer history") while the job keeps
+  reading for up to `JOB_BUDGET_MS`. Preliminary maps are never sealed; only complete ones are.
+- **Prewarm.** The daily cron calls `/api/jobs/prewarm`, which queues low-priority rescans of tokens
+  older than 12 h plus DexScreener's trending tokens on supported chains.

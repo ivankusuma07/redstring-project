@@ -34,7 +34,8 @@ function useIsMobile() {
 }
 const isTab = (t: string | null): t is Tab => !!t && TABS.some(([k]) => k === t);
 
-export function TokenView({ rec, onRescan }: { rec: StoredSnapshot; onRescan: () => void }) {
+/** `reading`: the rest of the history is being read right now (share of blocks read, if known). */
+export function TokenView({ rec, onRescan, reading }: { rec: StoredSnapshot; onRescan: () => void; reading?: { progress?: number } | null }) {
   const s = rec.snapshot;
   const params = useSearchParams();
   const [tab, setTabState] = useState<Tab>(() => {
@@ -57,13 +58,21 @@ export function TokenView({ rec, onRescan }: { rec: StoredSnapshot; onRescan: ()
   };
 
   const st: MapState = { hide, setHide, selected, setSelected, isolate, setIsolate };
-  const canRescan = openedAt - Date.parse(s.createdAt) > 2 * 60_000;
+  const canRescan = !reading && (rec.seal.status === "preliminary" || openedAt - Date.parse(s.createdAt) > 2 * 60_000);
 
   return (
     <main className="flex-1">
       {s.example && (
         <div className="border-b-2 border-ink bg-ink px-5 py-2 text-center font-mono text-xs text-white md:px-12">
           Example data. $EXAMPLE is an illustrative token, not a real asset. Paste any contract address to scan a real one.
+        </div>
+      )}
+      {rec.seal.status === "preliminary" && (
+        <div className="border-b-2 border-ink bg-signal px-5 py-2 text-center font-mono text-xs text-white md:px-12" role="status" data-testid="preliminary-banner">
+          Preliminary map · built from {Math.floor((s.history?.coverage ?? 0) * 100)}% of the token&apos;s transfer history.{" "}
+          {reading
+            ? `Reading the rest${reading.progress != null ? ` · ${Math.round(reading.progress * 100)}%` : "…"} This page updates when it finishes.`
+            : "Rescan to keep reading the rest."}
         </div>
       )}
       {mobile ? (

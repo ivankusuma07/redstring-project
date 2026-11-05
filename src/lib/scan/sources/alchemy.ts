@@ -72,67 +72,27 @@ const toRaw = (t: AlchemyTransfer): RawTransfer | null =>
       }
     : null;
 
-/** Full ERC-20 Transfer history of a token, oldest first. `complete` is false if time or size ran out. */
-export async function transfers(
-  chain: ChainKey,
-  token: string,
-  toBlock: number,
-  opts: { maxLogs: number; deadline: number; onProgress?: (p: number) => void; slices?: number; workers?: number },
-): Promise<{ transfers: RawTransfer[]; complete: boolean; firstBlock: number | null; stopped?: string; coverage: number; firstTransfer: RawTransfer | null }> {
-  const base = { contractAddresses: [token], category: ["erc20"], order: "asc", withMetadata: false, excludeZeroValue: false };
-  const first = await call(chain, { ...base, fromBlock: "0x0", toBlock: hex(toBlock), maxCount: "0x1" }, opts.deadline);
-  if (!first.transfers.length) return { transfers: [], complete: true, firstBlock: null, coverage: 1, firstTransfer: null };
-  const start = Number(BigInt(first.transfers[0].blockNum));
+const transferQuery = (token: string) => ({ contractAddresses: [token], category: ["erc20"], order: "asc", withMetadata: false, excludeZeroValue: false });
 
-  // Many equal block slices drained by a small worker pool: dense ranges don't leave workers idle,
-  // and the pool size stays under the plan's compute-unit throughput (more workers only throttle).
-  const n = Math.max(1, Math.min(opts.slices ?? 32, toBlock - start + 1));
-  const workers = opts.workers ?? 4;
-  const step = Math.ceil((toBlock - start + 1) / n);
-  const parts: RawTransfer[][] = Array.from({ length: n }, () => []);
-  let count = 0;
-  let finished = 0;
-  const covered = new Array<number>(n).fill(0); // blocks read per slice
-  let next = 0;
-  let stop: string | null = null;
+/** The token's first ERC-20 transfer (usually its mint), or null if it has none. */
+export async function firstTransfer(chain: ChainKey, token: string, toBlock: number, deadline: number): Promise<RawTransfer | null> {
+  const page = await call(chain, { ...transferQuery(token), fromBlock: "0x0", toBlock: hex(toBlock), maxCount: "0x1" }, deadline);
+  return page.transfers[0] ? toRaw(page.transfers[0]) : null;
+}
 
-  const drain = async (i: number) => {
-    const out = parts[i];
-    const from = start + i * step;
-    const to = Math.min(toBlock, from + step - 1);
-    if (from > to) return;
-    let pageKey: string | undefined;
-    do {
-      if (stop) return;
-      if (Date.now() > opts.deadline) {
-        stop = "time";
-        return;
-      }
-      const page = await call(chain, { ...base, fromBlock: hex(from), toBlock: hex(to), maxCount: "0x3e8", ...(pageKey ? { pageKey } : {}) }, opts.deadline).catch((e) => {
-        stop = (e as Error).message;
-        return null;
-      });
-      if (!page) return;
-      for (const t of page.transfers) {
-        const r = toRaw(t);
-        if (r) out.push(r);
-      }
-      count += page.transfers.length;
-      if (count > opts.maxLogs) stop = "size";
-      const last = page.transfers.at(-1);
-      if (last) covered[i] = Number(BigInt(last.blockNum)) - from + 1;
-      pageKey = page.pageKey;
-    } while (pageKey);
-    covered[i] = to - from + 1;
-    finished++;
-    opts.onProgress?.(finished / n);
-  };
-  await Promise.all(
-    Array.from({ length: workers }, async () => {
-      while (next < n && !stop) await drain(next++);
-    }),
-  );
-  return { transfers: parts.flat(), complete: !stop, firstBlock: start, stopped: stop ?? undefined, coverage: covered.reduce((a, b) => a + b, 0) / (toBlock - start + 1), firstTransfer: toRaw(first.transfers[0]) };
+/** Every Transfer of a token in [from, to], oldest first, 1,000 per page. Throws if time runs out. */
+export async function range(chain: ChainKey, token: string, from: number, to: number, deadline: number): Promise<RawTransfer[]> {
+  const out: RawTransfer[] = [];
+  let pageKey: string | undefined;
+  do {
+    const page = await call(chain, { ...transferQuery(token), fromBlock: hex(from), toBlock: hex(to), maxCount: "0x3e8", ...(pageKey ? { pageKey } : {}) }, deadline);
+    for (const t of page.transfers) {
+      const r = toRaw(t);
+      if (r) out.push(r);
+    }
+    pageKey = page.pageKey;
+  } while (pageKey);
+  return out;
 }
 
 /** First incoming native transfer (value > 0) for each wallet: its gas funder. */

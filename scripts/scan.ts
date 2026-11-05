@@ -20,7 +20,7 @@ async function main() {
       if (e.type === "stage")
         process.stderr.write(`· ${e.stage} ${e.status}${e.detail ? ` (${e.detail})` : ""}${e.progress != null ? ` ${Math.round(e.progress * 100)}%` : ""}\n`);
     },
-    280_000,
+    { budgetMs: 280_000 },
   );
   const s = analyze(raw);
   if (flag === "--json") {

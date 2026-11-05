@@ -122,10 +122,13 @@ export interface Snapshot {
   };
   sources: string[]; // which providers produced this data
   limits: string[]; // honest notes about what was not checked
+  /** How much of the token's transfer history this snapshot used. Absent on older snapshots. */
+  history?: { complete: boolean; coverage: number };
   example?: boolean; // illustrative example data, not a real token
 }
 
-export type SealStatus = "pending" | "sealed" | "unconfigured" | "example" | "failed";
+/** "preliminary": built from part of the history; never sealed, replaced when the full read finishes. */
+export type SealStatus = "pending" | "sealed" | "unconfigured" | "example" | "failed" | "preliminary";
 
 export interface Seal {
   status: SealStatus;
@@ -150,5 +153,7 @@ export type ScanStage = "holders" | "labels" | "links" | "score" | "seal";
 
 export type ScanEvent =
   | { type: "stage"; stage: ScanStage; status: "running" | "done" | "skipped"; detail?: string; progress?: number }
+  | { type: "queued"; position: number }
+  | { type: "preliminary"; data: StoredSnapshot }
   | { type: "done"; data: StoredSnapshot; cached: boolean }
   | { type: "error"; code: "not_found" | "not_configured" | "too_large" | "rate_limited" | "invalid" | "failed"; message: string };

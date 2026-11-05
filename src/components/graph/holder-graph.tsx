@@ -3,6 +3,7 @@
 import { forceCollide, forceLink, forceManyBody, forceSimulation, forceX, forceY, type Simulation, type SimulationNodeDatum } from "d3-force";
 import { Maximize2, Minimize2, Minus, Plus } from "lucide-react";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { amount, pct, shortAddr } from "@/lib/format";
 import type { HolderNode, LinkKind, Snapshot } from "@/lib/types";
 
 export type HideKey = "cex" | "dex" | "burn" | "contract";
@@ -79,6 +80,9 @@ export function HolderGraph({
   const view = useRef({ k: 1, x: 0, y: 0, w: 0, h: 0, fitted: false });
   const state = useRef({ hide, selected, isolate, hover: null as string | null });
   const frame = useRef(0);
+  const neighbours = useRef(new Map<string, Set<string>>());
+  const tipRef = useRef<HTMLDivElement>(null);
+  const [tip, setTip] = useState<HolderNode | null>(null);
   const [fullscreen, setFullscreen] = useState(false);
   const onSelectRef = useRef(onSelect);
 
@@ -106,14 +110,22 @@ export function HolderGraph({
     ctx.fillRect(0, 0, w, h);
     ctx.setTransform(dpr * k, 0, 0, dpr * k, dpr * x, dpr * y);
     const px = 1 / k;
-    const dim = (n: HolderNode) => iso != null && n.cluster !== iso;
+    // Hover focus: the wallet under the pointer (or the selected one), what it links to, and its group.
+    const focusId = variant === "full" ? (hover ?? sel) : null;
+    let focus: Set<string> | null = null;
+    if (focusId) {
+      focus = new Set([focusId, ...(neighbours.current.get(focusId) ?? [])]);
+      const fc = nodesRef.current.find((s) => s.id === focusId)?.n.cluster;
+      if (fc != null) for (const s of nodesRef.current) if (s.n.cluster === fc) focus.add(s.id);
+    }
+    const dim = (n: HolderNode) => (iso != null && n.cluster !== iso) || (focus != null && !focus.has(n.id));
 
     // links
     for (const l of linksRef.current) {
       const a = l.source;
       const b = l.target;
       if (hiddenBy(a.n, hd) || hiddenBy(b.n, hd)) continue;
-      ctx.globalAlpha = dim(a.n) && dim(b.n) ? 0.08 : 1;
+      ctx.globalAlpha = focus ? (a.id === focusId || b.id === focusId || (focus.has(a.id) && focus.has(b.id)) ? 1 : 0.06) : dim(a.n) && dim(b.n) ? 0.08 : 1;
       ctx.strokeStyle = l.kind === "same-block" ? INK : RED;
       ctx.lineWidth = (l.kind === "transfer" ? 2 : 1.6) * px;
       ctx.setLineDash(l.kind === "funder" ? [6 * px, 5 * px] : []);
@@ -183,18 +195,58 @@ export function HolderGraph({
             minY = Math.min(minY, s.y! - s.r);
           }
         if (!Number.isFinite(minX)) continue;
-        ctx.globalAlpha = iso != null && iso !== c.id ? 0.2 : 1;
+        ctx.globalAlpha = (iso != null && iso !== c.id) || (focus != null && !nodesRef.current.some((s) => s.n.cluster === c.id && focus.has(s.id))) ? 0.2 : 1;
         ctx.fillStyle = iso === c.id ? RED : INK;
         ctx.fillText(`GROUP ${c.id} — ${c.pct.toFixed(1)}%`, minX * k + x, minY * k + y - 12);
       }
       ctx.globalAlpha = 1;
-      ctx.fillStyle = "#595959";
+      // Rank labels under the nodes, biggest holders first, skipping any that would overlap.
+      ctx.font = "500 11px var(--font-jetbrains), ui-monospace, monospace";
       ctx.textAlign = "center";
-      for (const s of nodesRef.current) {
-        if (!s.n.exempt || hiddenBy(s.n, hd) || s.r * k < 9) continue;
-        ctx.fillText(exemptLabel(s.n), s.x! * k + x, (s.y! + s.r) * k + y + 20);
+      const taken: [number, number, number, number][] = [];
+      const order = [...nodesRef.current].sort((a, b) => {
+        const fa = focus?.has(a.id) ? 0 : 1;
+        const fb = focus?.has(b.id) ? 0 : 1;
+        return fa - fb || a.n.rank - b.n.rank;
+      });
+      for (const s of order) {
+        const n = s.n;
+        if (hiddenBy(n, hd)) continue;
+        const inFocus = focus?.has(n.id) ?? false;
+        const sr = s.r * k;
+        // small wallets get a label once zoomed in enough, or when they are part of the focus
+        if (!inFocus && sr < (n.exempt ? 4 : 5)) continue;
+        const text = n.exempt ? `${exemptLabel(n)} · #${n.rank}` : `#${n.rank}`;
+        const tx = s.x! * k + x;
+        const ty = s.y! * k + y + sr + 14;
+        if (tx < -40 || ty < -20 || tx > w + 40 || ty > h + 20) continue;
+        const tw = ctx.measureText(text).width + 6;
+        const box: [number, number, number, number] = [tx - tw / 2, ty - 11, tx + tw / 2, ty + 3];
+        if (taken.some((b) => box[0] < b[2] && box[2] > b[0] && box[1] < b[3] && box[3] > b[1])) continue;
+        taken.push(box);
+        ctx.globalAlpha = dim(n) ? 0.15 : 1;
+        ctx.fillStyle = n.id === focusId ? RED : inFocus ? INK : "#595959";
+        ctx.fillText(text, tx, ty);
       }
+      ctx.globalAlpha = 1;
       ctx.textAlign = "start";
+    }
+
+    // tooltip follows its node through pans, zooms and the simulation
+    const tipEl = tipRef.current;
+    if (tipEl) {
+      const s = hover ? nodesRef.current.find((n) => n.id === hover) : null;
+      if (s && s.x != null) {
+        const sx = s.x * k + x;
+        const sy = s.y! * k + y;
+        const tw = tipEl.offsetWidth;
+        const th = tipEl.offsetHeight;
+        const gap = s.r * k + 12;
+        const left = sx + gap + tw > w - 8 ? sx - gap - tw : sx + gap;
+        const top = Math.max(8, Math.min(h - th - 8, sy - th / 2));
+        tipEl.style.transform = `translate(${Math.round(left)}px, ${Math.round(top)}px)`;
+        tipEl.style.visibility = "visible";
+      } else tipEl.style.visibility = "hidden";
     }
 
     // minimap
@@ -261,6 +313,14 @@ export function HolderGraph({
       .filter((l) => l.source && l.target);
     nodesRef.current = nodes;
     linksRef.current = links;
+    const nb = new Map<string, Set<string>>();
+    for (const l of links) {
+      if (!nb.has(l.source.id)) nb.set(l.source.id, new Set());
+      if (!nb.has(l.target.id)) nb.set(l.target.id, new Set());
+      nb.get(l.source.id)!.add(l.target.id);
+      nb.get(l.target.id)!.add(l.source.id);
+    }
+    neighbours.current = nb;
 
     const sim = forceSimulation<SimNode, SimLink>(nodes)
       .alphaDecay(variant === "hero" ? 0.006 : 0.02)
@@ -322,7 +382,7 @@ export function HolderGraph({
     return () => ro.disconnect();
   }, [fit, schedule]);
 
-  useEffect(() => schedule(), [hide, selected, isolate, schedule]);
+  useEffect(() => schedule(), [hide, selected, isolate, tip, schedule]);
 
   // ---------- interaction --------------------------------------------------
   const toWorld = (sx: number, sy: number) => {
@@ -370,6 +430,10 @@ export function HolderGraph({
     };
     const down = (e: PointerEvent) => {
       canvas.setPointerCapture(e.pointerId);
+      if (e.pointerType !== "mouse" && state.current.hover) {
+        state.current.hover = null;
+        setTip(null);
+      }
       const p = pos(e);
       pointers.set(e.pointerId, p);
       moved = 0;
@@ -393,9 +457,10 @@ export function HolderGraph({
       if (!prev) {
         const s = hit(p.x, p.y);
         const id = s?.id ?? null;
-        if (id !== state.current.hover) {
+        if (id !== state.current.hover && variant === "full") {
           state.current.hover = id;
           canvas.style.cursor = id ? "pointer" : "grab";
+          setTip(s?.n ?? null);
           schedule();
         }
         return;
@@ -435,6 +500,7 @@ export function HolderGraph({
     const leave = () => {
       if (state.current.hover) {
         state.current.hover = null;
+        setTip(null);
         schedule();
       }
     };
@@ -526,6 +592,45 @@ export function HolderGraph({
         aria-label={`Holder map: ${snapshot.nodes.length} holders, ${snapshot.clusters.length} linked groups`}
         role="img"
       />
+      {tip && (
+        <div
+          ref={tipRef}
+          role="tooltip"
+          data-testid="graph-tooltip"
+          className="pointer-events-none absolute top-0 left-0 z-10 w-[264px] border-2 border-ink bg-white px-4 py-3 font-mono text-xs shadow-[4px_4px_0_#0a0a0a]"
+          style={{ visibility: "hidden" }}
+        >
+          <div className="flex items-baseline justify-between gap-3">
+            <span className="text-sm font-bold">Holder #{tip.rank}</span>
+            <span className="text-g1">{shortAddr(tip.id)}</span>
+          </div>
+          {tip.label && <div className="mt-0.5 truncate font-sans text-[13px] font-extrabold">{tip.label}</div>}
+          <dl className="mt-2.5 space-y-1 border-t border-ink pt-2.5">
+            <div className="flex justify-between">
+              <dt>Supply share</dt>
+              <dd className="font-bold">{pct(tip.pct, 2)}</dd>
+            </div>
+            <div className="flex justify-between gap-3">
+              <dt>Balance</dt>
+              <dd className="truncate font-bold">
+                {amount(tip.amount)} {snapshot.token.symbol}
+              </dd>
+            </div>
+          </dl>
+          <div className="mt-2.5 flex flex-wrap gap-1.5">
+            {tip.cluster != null ? (
+              <span className="bg-signal px-1.5 py-0.5 font-bold text-white">GROUP {tip.cluster}</span>
+            ) : tip.exempt ? (
+              <span className="border border-g2 px-1.5 py-0.5 text-g1">{exemptLabel(tip).toUpperCase()} · EXEMPT</span>
+            ) : (
+              <span className="border border-ink px-1.5 py-0.5">FREE FLOAT</span>
+            )}
+            {tip.launchBuyer && <span className="border border-signal px-1.5 py-0.5 text-signal">LAUNCH BUYER</span>}
+            {tip.fromDeployer && <span className="border border-signal px-1.5 py-0.5 text-signal">FROM DEPLOYER</span>}
+            {tip.isContract && !tip.exempt && <span className="border border-ink px-1.5 py-0.5">CONTRACT</span>}
+          </div>
+        </div>
+      )}
       {minimap && (
         <canvas
           ref={miniRef}

@@ -1,0 +1,41 @@
+{
+  "name": "redstring",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint",
+    "scan": "tsx scripts/scan.ts",
+    "verify": "tsx scripts/verify.ts",
+    "test:e2e": "playwright test",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "d3-force": "^3.0.1",
+    "lucide-react": "^1.68.0",
+    "next": "16.4.5",
+    "postgres": "^4.0.0",
+    "react": "19.3.0",
+    "react-dom": "19.3.0",
+    "server-only": "^0.0.1",
+    "viem": "^2.57.16"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "@tailwindcss/turbopack": "^4",
+    "@types/d3-force": "^3.0.10",
+    "@types/node": "^20",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "eslint": "^9",
+    "eslint-config-next": "16.4.5",
+    "tailwindcss": "^4",
+    "tsx": "^4.23.15",
+    "typescript": "^5"
+  },
+  "bin": {
+    "redstring-verify": "scripts/verify.ts"
+  }
+}

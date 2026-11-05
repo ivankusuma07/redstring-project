@@ -1,0 +1,102 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #0a0a0a;
+  --color-signal: #d10600;
+  --color-g1: #595959;
+  --color-g2: #9a9a9a;
+  --color-g3: #cfcfcf;
+  --color-paper: #ffffff;
+
+  --font-sans: var(--font-schibsted), "Helvetica Neue", Arial, sans-serif;
+  --font-mono: var(--font-jetbrains), ui-monospace, Menlo, monospace;
+
+  --tracking-tightest: -0.055em;
+}
+
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  background: #fff;
+  color: var(--color-ink);
+}
+
+body {
+  font-family: var(--font-sans);
+  font-weight: 450;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Swiss: no rounded corners anywhere */
+*,
+*::before,
+*::after {
+  border-radius: 0 !important;
+}
+
+::selection {
+  background: var(--color-signal);
+  color: #fff;
+}
+
+.display {
+  font-weight: 900;
+  letter-spacing: var(--tracking-tightest);
+  line-height: 0.86;
+}
+
+.rule-6 {
+  border-top: 6px solid var(--color-ink);
+}
+
+.stripes-red {
+  background: repeating-linear-gradient(135deg, var(--color-signal) 0 4px, #fff 4px 7px);
+}
+.stripes-grey {
+  background: repeating-linear-gradient(135deg, var(--color-g2) 0 4px, #fff 4px 7px);
+}
+
+.focus-ring:focus-visible,
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible {
+  outline: 2px solid var(--color-signal);
+  outline-offset: 2px;
+}
+
+@keyframes draw {
+  from {
+    stroke-dashoffset: 1;
+  }
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+.draw {
+  stroke-dasharray: 1;
+  animation: draw 2.4s cubic-bezier(0.65, 0, 0.35, 1) both;
+}
+
+@keyframes pull {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(3px);
+  }
+}
+.pull {
+  animation: pull 1.4s ease-in-out infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .draw,
+  .pull {
+    animation: none;
+  }
+}

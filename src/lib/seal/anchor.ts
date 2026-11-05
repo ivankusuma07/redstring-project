@@ -1,26 +1,28 @@
 import "server-only";
-import { createPublicClient, createWalletClient, defineChain, http, parseAbi, type Hex } from "viem";
+import {
+  createPublicClient,
+  createWalletClient,
+  http,
+  parseAbi,
+  type Hex,
+} from "viem";
 import { privateKeyToAccount } from "viem/accounts";
-import { CHAINS } from "../chains";
 import { store } from "../store";
 import type { Seal } from "../types";
+import { robinhood } from "./chain";
 import { merkle } from "./hash";
+
+export { robinhood };
 
 export const ANCHOR_ABI = parseAbi([
   "function anchor(bytes32 root, uint256 count)",
   "event Anchored(bytes32 indexed root, uint256 count, uint256 timestamp)",
 ]);
 
-export const robinhood = defineChain({
-  id: CHAINS.robinhood.id,
-  name: CHAINS.robinhood.name,
-  nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
-  rpcUrls: { default: { http: [CHAINS.robinhood.rpc] } },
-  blockExplorers: { default: { name: "Explorer", url: CHAINS.robinhood.explorer } },
-});
-
-export const anchorContract = () => (process.env.ANCHOR_CONTRACT?.toLowerCase() as Hex | undefined) ?? null;
-export const sealingConfigured = () => !!process.env.ANCHOR_PRIVATE_KEY && !!anchorContract();
+export const anchorContract = () =>
+  (process.env.ANCHOR_CONTRACT?.toLowerCase() as Hex | undefined) ?? null;
+export const sealingConfigured = () =>
+  !!process.env.ANCHOR_PRIVATE_KEY && !!anchorContract();
 
 const BATCH_SIZE = Number(process.env.SEAL_BATCH_SIZE ?? 16);
 const MAX_WAIT_MS = Number(process.env.SEAL_MAX_WAIT_MIN ?? 10) * 60_000;
@@ -38,7 +40,8 @@ export async function maybeFlush(): Promise<FlushResult> {
   const pending = await store().pendingSeals();
   if (!pending.length) return { sealed: 0, skipped: "nothing pending" };
   const oldest = Date.parse(pending[0].snapshot.createdAt);
-  if (pending.length < BATCH_SIZE && Date.now() - oldest < MAX_WAIT_MS) return { sealed: 0, skipped: "batch not ready" };
+  if (pending.length < BATCH_SIZE && Date.now() - oldest < MAX_WAIT_MS)
+    return { sealed: 0, skipped: "batch not ready" };
   return flushSeals();
 }
 
@@ -56,12 +59,24 @@ async function doFlush(): Promise<FlushResult> {
   const { root, proofs } = merkle(leaves);
 
   const account = privateKeyToAccount(process.env.ANCHOR_PRIVATE_KEY as Hex);
-  const wallet = createWalletClient({ account, chain: robinhood, transport: http() });
+  const wallet = createWalletClient({
+    account,
+    chain: robinhood,
+    transport: http(),
+  });
   const pub = createPublicClient({ chain: robinhood, transport: http() });
   const contract = anchorContract()!;
   try {
-    const txHash = await wallet.writeContract({ address: contract, abi: ANCHOR_ABI, functionName: "anchor", args: [root, BigInt(leaves.length)] });
-    const receipt = await pub.waitForTransactionReceipt({ hash: txHash, timeout: 90_000 });
+    const txHash = await wallet.writeContract({
+      address: contract,
+      abi: ANCHOR_ABI,
+      functionName: "anchor",
+      args: [root, BigInt(leaves.length)],
+    });
+    const receipt = await pub.waitForTransactionReceipt({
+      hash: txHash,
+      timeout: 90_000,
+    });
     if (receipt.status !== "success") throw new Error("anchor tx reverted");
     const sealedAt = new Date().toISOString();
     await Promise.all(

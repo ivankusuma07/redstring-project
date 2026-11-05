@@ -10,7 +10,10 @@
     "scan": "tsx scripts/scan.ts",
     "verify": "tsx scripts/verify.ts",
     "test:e2e": "playwright test",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test": "tsx --test \"test/**/*.test.ts\"",
+    "build:labels": "tsx scripts/build-labels.ts",
+    "deploy:anchor": "tsx scripts/deploy-anchor.ts"
   },
   "dependencies": {
     "d3-force": "^3.0.1",
@@ -31,6 +34,7 @@
     "@types/react-dom": "^19",
     "eslint": "^9",
     "eslint-config-next": "16.4.5",
+    "solc": "^0.8.28",
     "tailwindcss": "^4",
     "tsx": "^4.23.15",
     "typescript": "^5"

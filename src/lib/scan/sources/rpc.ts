@@ -15,42 +15,66 @@ export class RpcError extends Error {
 }
 
 let rid = 1;
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function rpc<T = unknown>(chain: ChainKey, method: string, params: unknown[], timeoutMs = 30_000): Promise<T> {
-  const res = await fetch(CHAINS[chain].rpc, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: rid++, method, params }),
-    signal: AbortSignal.timeout(timeoutMs),
-    cache: "no-store",
-  });
-  if (!res.ok) throw new RpcError(`RPC ${method} HTTP ${res.status}`, res.status);
-  const j = (await res.json()) as { result?: T; error?: { code: number; message: string } };
-  if (j.error) throw new RpcError(j.error.message, j.error.code);
-  return j.result as T;
+export async function rpc<T = unknown>(chain: ChainKey, method: string, params: unknown[], timeoutMs = 30_000, url = CHAINS[chain].rpc): Promise<T> {
+  for (let attempt = 0; ; attempt++) {
+    const res = await fetch(url, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: rid++, method, params }),
+      signal: AbortSignal.timeout(timeoutMs),
+      cache: "no-store",
+    });
+    const throttled = res.status === 429 || res.status === 503;
+    const j = throttled || !res.ok ? null : ((await res.json()) as { result?: T; error?: { code: number; message: string } });
+    // Keyed providers throttle per second (e.g. right after a heavy history read): back off and retry.
+    if ((throttled || j?.error?.code === 429) && attempt < 5) {
+      await sleep(500 * 2 ** attempt);
+      continue;
+    }
+    if (!j) throw new RpcError(`RPC ${method} HTTP ${res.status}`, res.status);
+    if (j.error) throw new RpcError(j.error.message, j.error.code);
+    return j.result as T;
+  }
 }
 
 /** JSON-RPC batch; falls back to sequential calls when the endpoint rejects batches. */
+/**
+ * JSON-RPC batch. A throttled batch backs off and is retried whole; only endpoints that don't
+ * support batches fall back to one call at a time. Calls that still fail come back as null.
+ */
 export async function rpcBatch<T = unknown>(chain: ChainKey, calls: { method: string; params: unknown[] }[], size = 40): Promise<(T | null)[]> {
   const out: (T | null)[] = [];
   for (let i = 0; i < calls.length; i += size) {
     const chunk = calls.slice(i, i + size);
-    try {
-      const body = chunk.map((c, k) => ({ jsonrpc: "2.0", id: k, method: c.method, params: c.params }));
-      const res = await fetch(CHAINS[chain].rpc, {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify(body),
-        signal: AbortSignal.timeout(30_000),
-        cache: "no-store",
-      });
-      const j = (await res.json()) as { id: number; result?: T; error?: unknown }[];
-      if (!Array.isArray(j)) throw new Error("batch unsupported");
-      const byId = new Map(j.map((r) => [r.id, r]));
-      chunk.forEach((_, k) => out.push((byId.get(k)?.result as T) ?? null));
-    } catch {
-      for (const c of chunk) out.push(await rpc<T>(chain, c.method, c.params).catch(() => null));
+    const body = JSON.stringify(chunk.map((c, k) => ({ jsonrpc: "2.0", id: k, method: c.method, params: c.params })));
+    type Row = { id: number; result?: T; error?: { code?: number } };
+    let rows = null as Row[] | null;
+    let unsupported = false;
+    for (let attempt = 0; attempt < 6 && !rows && !unsupported; attempt++) {
+      try {
+        const res = await fetch(CHAINS[chain].rpc, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body,
+          signal: AbortSignal.timeout(30_000),
+          cache: "no-store",
+        });
+        const j = res.status === 429 || res.status === 503 ? null : ((await res.json()) as unknown);
+        if (j && !Array.isArray(j)) unsupported = true;
+        else if (j && !(j as Row[]).some((r) => r.error?.code === 429)) rows = j as Row[];
+      } catch {
+        // network error / timeout: retry
+      }
+      if (!rows && !unsupported) await sleep(500 * 2 ** attempt);
     }
+    if (rows) {
+      const byId = new Map(rows.map((r) => [r.id, r]));
+      chunk.forEach((_, k) => out.push((byId.get(k)?.result as T) ?? null));
+    } else if (unsupported) {
+      for (const c of chunk) out.push(await rpc<T>(chain, c.method, c.params).catch(() => null));
+    } else chunk.forEach(() => out.push(null));
   }
   return out;
 }
@@ -93,6 +117,13 @@ export async function tokenMeta(chain: ChainKey, address: string, block: number)
 export async function getCodes(chain: ChainKey, addrs: string[]): Promise<Record<string, boolean>> {
   const res = await rpcBatch<string>(chain, addrs.map((a) => ({ method: "eth_getCode", params: [a, "latest"] })));
   return Object.fromEntries(addrs.map((a, i) => [a, !!res[i] && res[i] !== "0x"]));
+}
+
+/** Transaction counts (nonces); unanswered addresses are omitted. */
+export async function nonces(chain: ChainKey, addrs: string[]): Promise<Record<string, number>> {
+  if (!addrs.length) return {};
+  const res = await rpcBatch<string>(chain, addrs.map((a) => ({ method: "eth_getTransactionCount", params: [a, "latest"] })));
+  return Object.fromEntries(addrs.flatMap((a, i) => (res[i] ? [[a, Number(BigInt(res[i]!))]] : [])));
 }
 
 /** Contracts that answer token0() are AMM pairs/pools (Uniswap v2/v3 style). */
@@ -164,7 +195,13 @@ export async function replayTransfers(
     const end = Math.min(toBlock, start + span - 1);
     let logs: RpcLog[];
     try {
-      logs = await rpc<RpcLog[]>(chain, "eth_getLogs", [{ address: token, fromBlock: hex(start), toBlock: hex(end), topics: [TRANSFER_TOPIC] }], 45_000);
+      logs = await rpc<RpcLog[]>(
+        chain,
+        "eth_getLogs",
+        [{ address: token, fromBlock: hex(start), toBlock: hex(end), topics: [TRANSFER_TOPIC] }],
+        45_000,
+        CHAINS[chain].logsRpc,
+      );
     } catch (e) {
       const msg = String((e as Error).message).toLowerCase();
       const hint = msg.match(/only (\d+) are allowed/) ?? msg.match(/range.*?(\d{3,})/);
@@ -199,4 +236,19 @@ export function balancesFrom(transfers: RawTransfer[]): Map<string, bigint> {
     bal.set(t.to, (bal.get(t.to) ?? 0n) + t.value);
   }
   return bal;
+}
+
+/** Exact ERC-20 balances at a block via balanceOf (unanswered calls are omitted). */
+export async function balancesOf(chain: ChainKey, token: string, addrs: string[], block: number): Promise<Map<string, bigint>> {
+  const res = await rpcBatch<string>(
+    chain,
+    addrs.map((a) => ({ method: "eth_call", params: [{ to: token, data: `0x70a08231${a.slice(2).padStart(64, "0")}` }, hex(block)] })),
+    25,
+  );
+  const out = new Map<string, bigint>();
+  addrs.forEach((a, i) => {
+    const r = res[i];
+    if (r && r !== "0x") out.set(a, BigInt(r.slice(0, 66)));
+  });
+  return out;
 }

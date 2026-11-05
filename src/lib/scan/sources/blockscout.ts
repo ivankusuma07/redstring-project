@@ -7,7 +7,11 @@ import type { RawTransfer } from "../raw";
  * GET https://api.blockscout.com/{chainId}/api/v2/...?apikey=KEY
  */
 const key = () => process.env.BLOCKSCOUT_API_KEY;
-export const blockscoutEnabled = () => !!key();
+/** Chain ids the key's plan does not cover (HTTP 402/403), learned at runtime. */
+const unsupported = new Set<number>();
+export const blockscoutEnabled = (chain?: ChainKey) => !!key() && (!chain || !unsupported.has(CHAINS[chain].id));
+
+export class BlockscoutPlanError extends Error {}
 
 async function get<T>(chain: ChainKey, path: string, params: Record<string, string> = {}): Promise<T | null> {
   const base = process.env.BLOCKSCOUT_BASE ?? "https://api.blockscout.com";
@@ -16,6 +20,10 @@ async function get<T>(chain: ChainKey, path: string, params: Record<string, stri
   u.searchParams.set("apikey", key()!);
   const res = await fetch(u, { signal: AbortSignal.timeout(15_000), cache: "no-store", headers: { accept: "application/json" } });
   if (res.status === 404) return null;
+  if (res.status === 402 || res.status === 403) {
+    unsupported.add(CHAINS[chain].id);
+    throw new BlockscoutPlanError(`Blockscout plan does not cover ${CHAINS[chain].name}`);
+  }
   if (!res.ok) throw new Error(`Blockscout ${path} HTTP ${res.status}`);
   return (await res.json()) as T;
 }

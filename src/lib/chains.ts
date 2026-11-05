@@ -6,6 +6,9 @@ export interface ChainConfig {
   name: string;
   short: string;
   rpc: string;
+  /** Endpoint for eth_getLogs history replay. Defaults to the public RPC, because free tiers of
+   *  keyed providers (Alchemy) cap getLogs to ~10 blocks. */
+  logsRpc: string;
   explorer: string; // human explorer base URL
   hypersync: string;
   dexscreener: string;
@@ -22,6 +25,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     name: "Robinhood Chain",
     short: "Robinhood",
     rpc: env("RPC_ROBINHOOD") ?? "https://rpc.mainnet.chain.robinhood.com",
+    logsRpc: env("RPC_LOGS_ROBINHOOD") ?? env("RPC_ROBINHOOD") ?? "https://rpc.mainnet.chain.robinhood.com",
     explorer: env("EXPLORER_ROBINHOOD") ?? "https://robin.etherscan.io",
     hypersync: "https://robinhood.hypersync.xyz",
     dexscreener: "robinhood",
@@ -33,6 +37,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     name: "Base",
     short: "Base",
     rpc: env("RPC_BASE") ?? "https://mainnet.base.org",
+    logsRpc: env("RPC_LOGS_BASE") ?? "https://mainnet.base.org",
     explorer: env("EXPLORER_BASE") ?? "https://basescan.org",
     hypersync: "https://base.hypersync.xyz",
     dexscreener: "base",
@@ -44,6 +49,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     name: "Ethereum",
     short: "Ethereum",
     rpc: env("RPC_ETHEREUM") ?? "https://ethereum-rpc.publicnode.com",
+    logsRpc: env("RPC_LOGS_ETHEREUM") ?? "https://ethereum-rpc.publicnode.com",
     explorer: env("EXPLORER_ETHEREUM") ?? "https://etherscan.io",
     hypersync: "https://eth.hypersync.xyz",
     dexscreener: "ethereum",

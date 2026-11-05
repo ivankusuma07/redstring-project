@@ -44,10 +44,12 @@ function CrowSvg({ w }: { w: number }) {
 /** Logo crow (same as CrowMark in components/brand). */
 function CrowMarkSvg({ h }: { h: number }) {
   return (
-    <svg width={Math.round((h * 162) / 94)} height={h} viewBox="16 12 162 94">
-      <path d="M18 96 L52 74 L86 46 L118 30 L140 26 L150 34 L134 40 L126 62 L106 84 L76 90 L52 92 L40 104 Z" fill={INK} />
-      <path d="M112 26 L130 14 L146 16 L176 26 L146 30 L136 40 Z" fill={INK} />
-      <circle cx="139" cy="21" r="6.5" fill={RED} />
+    <svg width={Math.round((h * 84) / 88)} height={h} viewBox="8 8 84 88">
+      <circle cx="50" cy="45" r="34" fill={RED} />
+      <path fill={INK} d="M50 18 C53 13 60 13 63 16.5 C70 17 77 19.5 83 24 C77 25.5 70 27 65 28.5 C67 31 69 34 68.5 37 C71 44 71.5 55 67 64 C64 70 60 74 55 76 L49.5 94 L37 94 L42.5 80 C39 70 39 54 42 42 C43.5 34 46 26 50 18 Z" />
+      <path d="M55 75 L54 86 M61 72 L63 86" stroke={INK} strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M10 87.5 L90 85.5 M74 86 L83 80.5" stroke={INK} strokeWidth="2.6" strokeLinecap="round" fill="none" />
+      <circle cx="59.5" cy="20.5" r="1.8" fill={RED} />
     </svg>
   );
 }
@@ -58,7 +60,7 @@ export function OgCard({ rec }: { rec: StoredSnapshot | null }) {
     return (
       <div style={{ display: "flex", flexDirection: "column", justifyContent: "space-between", width: "100%", height: "100%", background: "#fff", border: `14px solid ${INK}`, padding: 56, fontFamily: "Schibsted" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 34, fontWeight: 800 }}>
-          <CrowMarkSvg h={34} /> Redstring
+          <CrowMarkSvg h={48} /> Redstring
         </div>
         <div style={{ display: "flex", flexDirection: "column", fontSize: 128, fontWeight: 900, letterSpacing: -6, lineHeight: 0.9 }}>
           <span>Who really</span>
@@ -81,7 +83,7 @@ export function OgCard({ rec }: { rec: StoredSnapshot | null }) {
     <div style={{ display: "flex", width: "100%", height: "100%", background: "#fff", border: `14px solid ${INK}`, padding: "46px 56px", fontFamily: "Schibsted", color: INK }}>
       <div style={{ display: "flex", flexDirection: "column", width: 650 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 14, fontSize: 30, fontWeight: 800 }}>
-          <CrowMarkSvg h={30} /> Redstring
+          <CrowMarkSvg h={42} /> Redstring
         </div>
         <div style={{ fontFamily: "Mono", fontSize: 21, marginTop: 26 }}>
           {`${CHAINS[s.chain].name} · block ${s.blockNumber.toLocaleString("en-US")}`}

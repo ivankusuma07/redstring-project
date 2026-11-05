@@ -3,19 +3,22 @@ import Link from "next/link";
 export function Logo({ className = "", invert = false }: { className?: string; invert?: boolean }) {
   return (
     <Link href="/" className={`inline-flex items-center gap-2 font-extrabold tracking-[-0.03em] ${invert ? "text-white" : "text-ink"} ${className}`} aria-label="Redstring home">
-      <CrowMark className="h-[1.05em] w-auto -translate-y-[0.08em]" />
+      <CrowMark className="h-[1.45em] w-auto -translate-y-[0.06em]" />
       <span>Redstring</span>
     </Link>
   );
 }
 
-/** Compact crow for the logo and small places: silhouette in the text colour, red eye. */
+/** Logo mark: a crow perched on a branch against a red sun. Crow takes the text colour. */
 export function CrowMark({ className = "" }: { className?: string }) {
   return (
-    <svg viewBox="16 12 162 94" className={className} aria-hidden fill="currentColor">
-      <path d="M18 96 L52 74 L86 46 L118 30 L140 26 L150 34 L134 40 L126 62 L106 84 L76 90 L52 92 L40 104 Z" />
-      <path d="M112 26 L130 14 L146 16 L176 26 L146 30 L136 40 Z" />
-      <circle cx="139" cy="21" r="6.5" fill="#d10600" />
+    <svg viewBox="8 8 84 88" className={className} aria-hidden>
+      <circle cx="50" cy="45" r="34" fill="#d10600" />
+      <path fill="currentColor" d="M50 18 C53 13 60 13 63 16.5 C70 17 77 19.5 83 24 C77 25.5 70 27 65 28.5 C67 31 69 34 68.5 37 C71 44 71.5 55 67 64 C64 70 60 74 55 76 L49.5 94 L37 94 L42.5 80 C39 70 39 54 42 42 C43.5 34 46 26 50 18 Z" />
+      <path d="M46 44 C52 48 58 54 59 62 C59 70 53 76 47 84" stroke="#fff" strokeWidth="0.9" fill="none" opacity="0.35" />
+      <path d="M55 75 L54 86 M61 72 L63 86" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" />
+      <path d="M10 87.5 L90 85.5 M74 86 L83 80.5" stroke="currentColor" strokeWidth="2.6" strokeLinecap="round" fill="none" />
+      <circle cx="59.5" cy="20.5" r="1.8" fill="#d10600" />
     </svg>
   );
 }

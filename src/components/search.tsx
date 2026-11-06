@@ -3,7 +3,7 @@
 import { Search as SearchIcon, X } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { CHAIN_LIST, CHAINS } from "@/lib/chains";
+import { CHAIN_LIST, CHAINS, chainNames } from "@/lib/chains";
 import { isAddress, shortAddr, usd } from "@/lib/format";
 import type { ChainKey } from "@/lib/types";
 
@@ -93,7 +93,7 @@ function Results({ hits, active, onPick, loading, q, listId }: { hits: Hit[]; ac
         </li>
       ))}
       {!hits.length && (
-        <li className="px-4 py-3 font-mono text-xs text-g1">{loading ? "Searching…" : isAddress(q.trim()) ? "" : "No match on Robinhood Chain, Base or Ethereum. Paste the contract address."}</li>
+        <li className="px-4 py-3 font-mono text-xs text-g1">{loading ? "Searching…" : isAddress(q.trim()) ? "" : `No match on ${chainNames("or")}. Paste the contract address.`}</li>
       )}
     </ul>
   );

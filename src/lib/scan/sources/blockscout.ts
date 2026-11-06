@@ -3,13 +3,13 @@ import type { ChainKey } from "../../types";
 import type { RawTransfer } from "../raw";
 
 /**
- * Blockscout PRO API: one key covers all three chains by chain id.
+ * Blockscout PRO API: one key covers every chain with `blockscout: true` in chains.ts, by chain id.
  * GET https://api.blockscout.com/{chainId}/api/v2/...?apikey=KEY
  */
 const key = () => process.env.BLOCKSCOUT_API_KEY;
 /** Chain ids the key's plan does not cover (HTTP 402/403), learned at runtime. */
 const unsupported = new Set<number>();
-export const blockscoutEnabled = (chain?: ChainKey) => !!key() && (!chain || !unsupported.has(CHAINS[chain].id));
+export const blockscoutEnabled = (chain?: ChainKey) => !!key() && (!chain || (CHAINS[chain].blockscout && !unsupported.has(CHAINS[chain].id)));
 
 export class BlockscoutPlanError extends Error {}
 

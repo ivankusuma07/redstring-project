@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { CHAINS } from "./chains";
+import { CHAIN_LIST, CHAINS } from "./chains";
 import { levelLabel, shortAddr } from "./format";
 import type { StoredSnapshot } from "./types";
 
@@ -69,7 +69,7 @@ export function OgCard({ rec }: { rec: StoredSnapshot | null }) {
           </span>
         </div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end" }}>
-          <span style={{ fontFamily: "Mono", fontSize: 24 }}>Robinhood Chain · Base · Ethereum</span>
+          <span style={{ fontFamily: "Mono", fontSize: 24 }}>{CHAIN_LIST.map((c) => c.short).join(" · ")}</span>
           <CrowSvg w={130} />
         </div>
       </div>

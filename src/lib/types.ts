@@ -1,4 +1,4 @@
-export type ChainKey = "robinhood" | "base" | "ethereum";
+export type ChainKey = "robinhood" | "base" | "ethereum" | "bnb" | "arbitrum";
 
 /** What a holder address is. Exempt types never act as connectors. */
 export type HolderType =

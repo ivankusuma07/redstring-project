@@ -6,7 +6,7 @@
  *   npm run build:labels -- accounts.csv
  *
  * Output:
- *   chains["1" | "8453"]: exact per-chain labels (exchanges, bridges, DEX infrastructure).
+ *   chains["1" | "8453" | "56" | "42161"]: exact per-chain labels (exchanges, bridges, DEX infrastructure).
  *   exchangeEoa: exchange wallets from *every* chain in the dataset. An EOA address is the same
  *     private key on every EVM chain, so these are applied on any chain where the address has
  *     no code (checked at scan time). Contracts are never carried across chains.
@@ -15,7 +15,7 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 
 type Type = "cex" | "dex" | "bridge";
-const OUT_CHAINS = ["1", "8453"];
+const OUT_CHAINS = ["1", "8453", "56", "42161"];
 
 const CEX_NAME =
   /\b(binance|coinbase|kraken|okx|okex|bybit|kucoin|gate\.io|gate|mexc|bitget|htx|huobi|crypto\.com|bitfinex|bitstamp|upbit|bithumb|gemini|robinhood|poloniex|bitmart|lbank|bingx|blofin|phemex|bitvavo|bitpanda|whitebit|coinone|korbit|bitflyer|coincheck|bitso|luno|ascendex|probit|coinex|hotbit|btse|deribit|bitmex|uphold)\b/i;
@@ -24,7 +24,7 @@ const NOT_CUSTODY = /\b(token|deployer|exploit|exploiter|hack|hacker|phish|scam|
 const BRIDGE_CATEGORIES = new Set(["bridge", "stargate", "allbridge", "debridge", "hop-protocol", "across-protocol", "wormhole", "layerzero", "synapse", "celer-network", "multichain", "orbiter-finance"]);
 const BRIDGE_NAME = /\b(bridge|gateway|portal|messenger|inbox|outbox)\b/i;
 const DEX_NAME = /\b(router|pool ?manager|vault|aggregat\w*|swap router|exchange proxy|settlement|permit2)\b/i;
-const DEX_CATEGORIES = new Set(["uniswap", "sushiswap", "pancakeswap", "kyberswap", "curve-fi", "balancer", "1inch", "0x-protocol", "aerodrome", "cow-protocol", "paraswap", "odos", "router", "dex"]);
+const DEX_CATEGORIES = new Set(["uniswap", "sushiswap", "pancakeswap", "kyberswap", "curve-fi", "balancer", "1inch", "0x-protocol", "aerodrome", "camelot", "trader-joe", "cow-protocol", "paraswap", "odos", "router", "dex"]);
 const DEPOSIT = /\bdep:|deposit address/i; // per-user deposit addresses: one customer each, not custody
 const SKIP = /\b(exploit|exploiter|hack|hacker|phish|scam|fake)\b/i;
 

@@ -40,7 +40,7 @@ export default function MethodPage() {
           <p>We read the token&apos;s metadata over RPC, then the top 250 holders at the latest block. Holder lists come from Blockscout when a key is set; otherwise we replay every ERC-20 Transfer log from the deploy block and compute balances ourselves.</p>
           <p>Each holder is labelled: exchange (CEX), DEX pool, burn, bridge, contract or deployer. Labels come from a seed list, explorer name tags, DexScreener pair addresses, and contracts that answer <code className="font-mono">token0()</code>.</p>
           <p>Exchange wallets tagged on any EVM chain are recognised on every chain where the address has no code: a wallet address is one private key everywhere, so it is the same exchange. Contracts are never matched across chains.</p>
-          <p>Hubs no list knows are inferred. A contract that traded with 25 or more addresses is treated as a pool or router. A wallet that traded with 25 or more addresses, or paid gas for three or more holders, is treated as a likely exchange when it has sent an exchange-scale number of transactions (10,000 on Robinhood Chain, 50,000 on Base and Ethereum). Inferred labels say “inferred”.</p>
+          <p>Hubs no list knows are inferred. A contract that traded with 25 or more addresses is treated as a pool or router. A wallet that traded with 25 or more addresses, or paid gas for three or more holders, is treated as a likely exchange when it has sent an exchange-scale number of transactions (10,000 on Robinhood Chain, 50,000 on the other chains). Inferred labels say “inferred”.</p>
           <p className="font-mono text-xs text-g1">Name-tag data: eth-labels by dawsbot, MIT licence, github.com/dawsbot/eth-labels.</p>
         </Section>
 

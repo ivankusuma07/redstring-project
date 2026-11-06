@@ -10,7 +10,7 @@ import { collect } from "../src/lib/scan/collect";
 async function main() {
   const [chain, address, flag] = process.argv.slice(2);
   if (!chain || !address || !isChainKey(chain)) {
-    console.error("usage: npm run scan -- <robinhood|base|ethereum> <tokenAddress> [--json]");
+    console.error("usage: npm run scan -- <robinhood|base|ethereum|bnb|arbitrum> <tokenAddress> [--json]");
     return 2;
   }
   const raw = await collect(

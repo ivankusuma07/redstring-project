@@ -14,6 +14,8 @@ export interface ChainConfig {
   dexscreener: string;
   /** Max block span for one eth_getLogs call on the default RPC. */
   logRange: number;
+  /** Covered by the Blockscout PRO API (BNB Chain is not). */
+  blockscout: boolean;
 }
 
 const env = (k: string) => (typeof process !== "undefined" ? process.env[k] : undefined) || undefined;
@@ -30,6 +32,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     hypersync: "https://robinhood.hypersync.xyz",
     dexscreener: "robinhood",
     logRange: 10_000_000,
+    blockscout: true,
   },
   base: {
     key: "base",
@@ -42,6 +45,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     hypersync: "https://base.hypersync.xyz",
     dexscreener: "base",
     logRange: 10_000,
+    blockscout: true,
   },
   ethereum: {
     key: "ethereum",
@@ -54,13 +58,46 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     hypersync: "https://eth.hypersync.xyz",
     dexscreener: "ethereum",
     logRange: 10_000,
+    blockscout: true,
+  },
+  bnb: {
+    key: "bnb",
+    id: 56,
+    name: "BNB Chain",
+    short: "BNB",
+    rpc: env("RPC_BNB") ?? "https://bsc-rpc.publicnode.com",
+    logsRpc: env("RPC_LOGS_BNB") ?? "https://bsc-rpc.publicnode.com",
+    explorer: env("EXPLORER_BNB") ?? "https://bscscan.com",
+    hypersync: "https://bsc.hypersync.xyz",
+    dexscreener: "bsc",
+    logRange: 5_000,
+    blockscout: false,
+  },
+  arbitrum: {
+    key: "arbitrum",
+    id: 42161,
+    name: "Arbitrum",
+    short: "Arbitrum",
+    rpc: env("RPC_ARBITRUM") ?? "https://arb1.arbitrum.io/rpc",
+    logsRpc: env("RPC_LOGS_ARBITRUM") ?? "https://arb1.arbitrum.io/rpc",
+    explorer: env("EXPLORER_ARBITRUM") ?? "https://arbiscan.io",
+    hypersync: "https://arbitrum.hypersync.xyz",
+    dexscreener: "arbitrum",
+    logRange: 10_000,
+    blockscout: true,
   },
 };
 
-export const CHAIN_LIST: ChainConfig[] = [CHAINS.robinhood, CHAINS.base, CHAINS.ethereum];
+export const CHAIN_LIST: ChainConfig[] = [CHAINS.robinhood, CHAINS.base, CHAINS.ethereum, CHAINS.bnb, CHAINS.arbitrum];
+
+/** "Robinhood Chain, Base, Ethereum, BNB Chain and Arbitrum" (or "or"). */
+export const chainNames = (join: "and" | "or" = "and") => {
+  const n = CHAIN_LIST.map((c) => c.name);
+  return `${n.slice(0, -1).join(", ")} ${join} ${n[n.length - 1]}`;
+};
 
 export function isChainKey(v: string): v is ChainKey {
-  return v === "robinhood" || v === "base" || v === "ethereum";
+  return Object.hasOwn(CHAINS, v);
 }
 
 export function chainByDexscreenerId(id: string): ChainConfig | undefined {

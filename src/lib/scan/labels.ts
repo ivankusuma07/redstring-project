@@ -37,6 +37,27 @@ const SEED: Partial<Record<ChainKey | "*", Record<string, RawLabel>>> = {
     // Arbitrum Orbit precompiles
     "0x0000000000000000000000000000000000000064": { type: "bridge", label: "ArbSys (L2→L1 bridge)" },
   },
+  bnb: {
+    "0x28e2ea090877bf75740558f6bfb36a5ffee9e9df": { type: "dex", label: "Uniswap v4 PoolManager" },
+    "0x1906c1d672b88cd1b9ac7593301ca990f94eae07": { type: "dex", label: "Uniswap v4 Universal Router" },
+    "0x000000000022d473030f116ddee9f6b43ac78ba3": { type: "dex", label: "Permit2" },
+    "0x10ed43c718714eb63d5aa57b78b54704e256024e": { type: "dex", label: "PancakeSwap v2 Router" },
+    "0x13f4ea83d0bd40e75c8222255bc855a974568dd4": { type: "dex", label: "PancakeSwap v3 Smart Router" },
+    "0xd9c500dff816a1da21a48a732d3498bf09dc9aeb": { type: "dex", label: "PancakeSwap Universal Router" },
+    // four.meme bonding curves hold a token's unsold supply until it graduates to PancakeSwap
+    "0x5c952063c7fc8610ffdb798152d69f0b9550762b": { type: "dex", label: "four.meme bonding curve" },
+    "0xec4549cadce5da21df6e6422d448034b5233bfbc": { type: "dex", label: "four.meme bonding curve (v1)" },
+    "0x0000000000000000000000000000000000001004": { type: "bridge", label: "BSC Token Hub" },
+  },
+  arbitrum: {
+    "0x360e68faccca8ca495c1b759fd9eee466db9fb32": { type: "dex", label: "Uniswap v4 PoolManager" },
+    "0xa51afafe0263b40edaef0df8781ea9aa03e381a3": { type: "dex", label: "Uniswap v4 Universal Router" },
+    "0x000000000022d473030f116ddee9f6b43ac78ba3": { type: "dex", label: "Permit2" },
+    "0xc873fecbd354f5a56e00e710b90ef4201db2448d": { type: "dex", label: "Camelot Router" },
+    "0x0000000000000000000000000000000000000064": { type: "bridge", label: "ArbSys (L2→L1 bridge)" },
+    "0x5288c571fd7ad117bea99bf60fe0846c4e84f933": { type: "bridge", label: "Arbitrum L2 Gateway Router" },
+    "0x09e9222e96e7b4ae2a407b98d48e330053351eee": { type: "bridge", label: "Arbitrum L2 ERC20 Gateway" },
+  },
 };
 
 type DataFile = { chains: Record<string, Record<string, [RawLabel["type"], string]>>; exchangeEoa: Record<string, string> };
@@ -67,7 +88,7 @@ export function seedLabel(chain: ChainKey, address: string, isContract = false):
 }
 
 const CEX_RE = /\b(binance|coinbase|kraken|okx|okex|bybit|kucoin|gate\.io|gateio|mexc|bitget|htx|huobi|crypto\.com|bitfinex|bitstamp|upbit|bithumb|gemini|robinhood)\b/i;
-const DEX_RE = /\b(pool|pair|uniswap|aerodrome|sushi|pancake|curve|balancer|lp token|amm|poolmanager)\b/i;
+const DEX_RE = /\b(pool|pair|uniswap|aerodrome|sushi|pancake|camelot|curve|balancer|lp token|amm|poolmanager)\b/i;
 const BRIDGE_RE = /\b(bridge|gateway|portal|wormhole|layerzero|stargate)\b/i;
 
 /** Label from explorer names / public tags. */
@@ -92,7 +113,7 @@ export const FUNDER_HUB_WALLETS = 3;
  * to hundreds. Robinhood Chain is young, so its exchange wallets have far fewer (Nov 2026: the one
  * tagged Robinhood wallet active there had 516), hence the lower bar. HOT_WALLET_NONCE overrides.
  */
-const HOT_WALLET_NONCE: Record<ChainKey, number> = { ethereum: 50_000, base: 50_000, robinhood: 10_000 };
+const HOT_WALLET_NONCE: Record<ChainKey, number> = { ethereum: 50_000, base: 50_000, bnb: 50_000, arbitrum: 50_000, robinhood: 10_000 };
 export function hotWalletNonce(chain: ChainKey): number {
   const env = Number(process.env.HOT_WALLET_NONCE);
   return env > 0 ? env : HOT_WALLET_NONCE[chain];

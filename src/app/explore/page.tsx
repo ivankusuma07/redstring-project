@@ -5,10 +5,11 @@ import { Suspense } from "react";
 import { SiteFooter } from "@/components/brand";
 import { AppHeader } from "@/components/headers";
 import { categoryOf } from "@/lib/categories";
+import { CHAIN_LIST, chainNames } from "@/lib/chains";
 import { store } from "@/lib/store";
 import { ExploreTable, type Row } from "./explore-table";
 
-export const metadata: Metadata = { title: "Explore", description: "Recently scanned tokens across Robinhood Chain, Base and Ethereum." };
+export const metadata: Metadata = { title: "Explore", description: `Recently scanned tokens across ${chainNames()}.` };
 
 async function Rows() {
   await connection();
@@ -59,7 +60,7 @@ export default function ExplorePage() {
         <div className="grid grid-cols-12 items-end gap-6 px-5 pt-14 pb-10 md:px-12">
           <h1 className="display col-span-12 text-[96px] md:col-span-7 md:text-[136px]">Explore</h1>
           <p className="col-span-12 text-xl leading-snug md:col-span-5">
-            Recently scanned tokens across three chains.
+            Recently scanned tokens across {CHAIN_LIST.length} chains.
             <br />
             Sorted by most recent scan.
           </p>

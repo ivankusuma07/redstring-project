@@ -1,6 +1,6 @@
 # Redstring
 
-*Pull the string.* Token supply forensics for **Robinhood Chain, Base and Ethereum**. Paste a token, see who really holds it, share the receipt.
+*Pull the string.* Token supply forensics for **Robinhood Chain, Base, Ethereum, BNB Chain and Arbitrum**. Paste a token, see who really holds it, share the receipt.
 
 Product brief: [`redstring-brief.md`](redstring-brief.md) · UI reference: [`REDSTRING-swiss-forensic-screens.pdf`](REDSTRING-swiss-forensic-screens.pdf) (Direction B, Swiss Forensic).
 
@@ -79,7 +79,7 @@ merge hundreds of unrelated holders. Sources, in order:
 
 3. Inference (`inferHubs`): contracts with ≥25 transfer peers become "Pool / router (inferred)";
    wallets with ≥25 peers or that funded ≥3 holders become "likely exchange (inferred)" when their
-   nonce is ≥10k (Robinhood Chain) / ≥50k (Base, Ethereum). Override with `HOT_WALLET_NONCE`.
+   nonce is ≥10k (Robinhood Chain) / ≥50k (Base, Ethereum, BNB Chain, Arbitrum). Override with `HOT_WALLET_NONCE`.
 
 `npm test` checks that labelled and inferred exchanges never link holders.
 

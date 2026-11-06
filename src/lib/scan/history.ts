@@ -32,7 +32,8 @@ export interface HistoryStore {
 export const REORG_DEPTH = 50;
 
 /** Blocks per stored chunk: roughly weeks of history, so a lost in-flight chunk costs little. */
-const SLICE_BLOCKS: Record<ChainKey, number> = { robinhood: 5_000_000, base: 1_000_000, ethereum: 200_000 };
+// About three to four weeks of blocks per slice (BNB Chain ~0.75 s blocks, Arbitrum ~0.25 s).
+const SLICE_BLOCKS: Record<ChainKey, number> = { robinhood: 5_000_000, base: 1_000_000, ethereum: 200_000, bnb: 3_000_000, arbitrum: 8_000_000 };
 
 // ---- pure helpers --------------------------------------------------------------
 

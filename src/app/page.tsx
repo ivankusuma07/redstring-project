@@ -4,7 +4,7 @@ import { HolderGraph } from "@/components/graph/holder-graph";
 import { SiteHeader } from "@/components/headers";
 import { HeroSearch } from "@/components/search";
 import { SupplyBar } from "@/components/supply-bar";
-import { CHAINS } from "@/lib/chains";
+import { CHAIN_LIST, CHAINS } from "@/lib/chains";
 import { FEATURED_HREF, featuredSnapshot } from "@/lib/featured";
 import type { Snapshot, SupplySegment } from "@/lib/types";
 
@@ -36,7 +36,7 @@ export default async function Home() {
       <main className="mx-auto w-full max-w-[1440px] flex-1 px-6 md:px-12">
         {/* hero */}
         <section className="relative grid grid-cols-12 gap-6 pt-12 pb-12 md:pt-20">
-          <p className="col-span-12 font-mono text-sm">Token supply forensics — Robinhood Chain, Base, Ethereum</p>
+          <p className="col-span-12 font-mono text-sm">Token supply forensics — {CHAIN_LIST.map((c) => c.name).join(", ")}</p>
           <h1 className="display col-span-12 mt-2 text-[72px] sm:text-[112px] lg:text-[148px] xl:text-[176px]">
             Who really
             <br />

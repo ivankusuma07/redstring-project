@@ -1,6 +1,8 @@
 import Link from "next/link";
+import { Suspense } from "react";
 import { FEATURED_HREF } from "@/lib/featured";
 import { Logo } from "./brand";
+import { ChainSwitch, ChainSwitchFallback } from "./chain-switch";
 import { HeaderSearch, MobileSearch } from "./search";
 
 /** Landing header: numbered nav + Launch app. */
@@ -29,12 +31,17 @@ export function SiteHeader() {
   );
 }
 
-/** App header: search with ⌘K, default chain, Explore, Method. */
+/** App header: network switcher, search with ⌘K, Explore, Method. */
 export function AppHeader({ active }: { active?: "explore" | "method" }) {
   return (
     <header className="border-b-2 border-ink bg-white">
       <div className="mx-auto flex w-full max-w-[1600px] items-center gap-6 px-5 py-4 md:gap-8 md:px-12 md:py-5">
-        <Logo className="shrink-0 text-[22px] md:text-[26px]" />
+        <div className="flex shrink-0 items-center gap-4 md:gap-6">
+          <Logo className="shrink-0 text-[22px] md:text-[26px]" />
+          <Suspense fallback={<ChainSwitchFallback />}>
+            <ChainSwitch />
+          </Suspense>
+        </div>
         <div className="hidden min-w-0 flex-1 md:flex">
           <HeaderSearch />
         </div>
@@ -46,7 +53,7 @@ export function AppHeader({ active }: { active?: "explore" | "method" }) {
             Method
           </Link>
         </nav>
-        <div className="ml-auto md:hidden">
+        <div className="ml-auto shrink-0 md:hidden">
           <MobileSearch />
         </div>
       </div>

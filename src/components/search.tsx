@@ -137,7 +137,14 @@ function useSearchBox(onDone?: () => void) {
   return { q, setQ: setQuery, open, setOpen, active, hits, loading, pick, submit, onKeyDown, chain, setChain };
 }
 
-/** Header search with ⌘K. */
+const subscribeNone = () => () => {};
+/** "⌘K" on Apple devices, "Ctrl K" elsewhere. */
+function ShortcutHint() {
+  const mac = useSyncExternalStore(subscribeNone, () => /Mac|iPhone|iPad/.test(navigator.platform || navigator.userAgent), () => true);
+  return <kbd className="ml-3 hidden shrink-0 border border-g2 px-1.5 py-0.5 font-mono text-[11px] text-g1 sm:block">{mac ? "⌘K" : "Ctrl K"}</kbd>;
+}
+
+/** Header search with ⌘K / Ctrl K. */
 export function HeaderSearch() {
   const s = useSearchBox();
   const ref = useRef<HTMLInputElement>(null);
@@ -155,7 +162,7 @@ export function HeaderSearch() {
     return () => window.removeEventListener("keydown", onKey);
   }, [setOpen]);
   return (
-    <div className="flex min-w-0 flex-1 items-stretch gap-6">
+    <div className="flex min-w-0 flex-1 items-stretch">
       <div className="relative min-w-0 flex-1">
         <label className="flex h-[52px] items-center border-2 border-ink bg-white px-4">
           <span className="sr-only">Search token or address</span>
@@ -176,20 +183,10 @@ export function HeaderSearch() {
             aria-controls={listId}
             data-testid="header-search"
           />
-          <kbd className="ml-3 hidden font-mono text-[11px] text-g1 sm:block">⌘K</kbd>
+          <ShortcutHint />
         </label>
         {s.open && <Results hits={s.hits} active={s.active} onPick={s.pick} loading={s.loading} q={s.q} listId={listId} />}
       </div>
-      <label className="hidden h-[52px] items-center border-2 border-ink px-4 lg:flex">
-        <span className="sr-only">Default chain for addresses</span>
-        <select value={s.chain} onChange={(e) => s.setChain(e.target.value as ChainKey)} className="bg-transparent pr-2 font-mono text-sm outline-none">
-          {CHAIN_LIST.map((c) => (
-            <option key={c.key} value={c.key}>
-              {c.name}
-            </option>
-          ))}
-        </select>
-      </label>
     </div>
   );
 }

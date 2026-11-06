@@ -1,4 +1,5 @@
 import { cacheLife } from "next/cache";
+import { FEATURED_BY_CHAIN } from "./featured-chains";
 import { exampleSnapshot } from "./scan/example";
 import { store } from "./store";
 import type { ChainKey, Snapshot } from "./types";
@@ -9,7 +10,7 @@ import type { ChainKey, Snapshot } from "./types";
  */
 export const FEATURED: { chain: ChainKey; address: string } = {
   chain: "robinhood",
-  address: "0x008df4b3e857d06c4603aeb11f267ccd32ce2005",
+  address: FEATURED_BY_CHAIN.robinhood,
 };
 export const FEATURED_HREF = `/${FEATURED.chain}/${FEATURED.address}`;
 

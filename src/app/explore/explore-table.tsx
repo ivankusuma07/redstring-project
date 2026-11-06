@@ -101,7 +101,7 @@ export function ExploreTable({ rows, pinned }: { rows: Row[]; pinned?: React.Rea
             {view.slice(0, limit).map((r) => (
               <tr key={`${r.chain}:${r.address}`} className="border-b border-ink hover:bg-[#f7f7f7]">
                 <td className="px-3 py-4">
-                  <Link href={r.href} className="text-xl font-extrabold tracking-[-0.02em] hover:text-signal">
+                  <Link href={r.href} title={`$${r.symbol}`} className="block max-w-[16ch] truncate text-xl font-extrabold tracking-[-0.02em] hover:text-signal">
                     ${r.symbol}
                   </Link>
                   {r.example && <span className="ml-2 border border-ink px-1.5 py-0.5 font-mono text-[10px]">EXAMPLE</span>}

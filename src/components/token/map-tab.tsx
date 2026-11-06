@@ -66,9 +66,9 @@ export function GroupList({ s, st, max = 12 }: { s: Snapshot; st: MapState; max?
             aria-pressed={st.isolate === c.id}
           >
             <span className="text-xl font-extrabold tracking-[-0.02em] whitespace-nowrap">Group {c.id}</span>
-            <span className={`text-xl font-extrabold ${i === 0 ? "text-signal" : ""}`}>{c.pct.toFixed(1)}%</span>
-            <span className="font-mono text-xs">{c.size} wallets</span>
-            <span className="max-w-24 text-right font-mono text-xs">{clusterShort(c)}</span>
+            <span className={`text-right text-xl font-extrabold tabular-nums ${i === 0 ? "text-signal" : ""}`}>{c.pct.toFixed(1)}%</span>
+            <span className="font-mono text-xs whitespace-nowrap">{c.size} wallets</span>
+            <span className="text-right font-mono text-xs">{clusterShort(c)}</span>
           </button>
         </li>
       ))}

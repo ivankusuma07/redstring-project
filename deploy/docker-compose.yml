@@ -1,5 +1,6 @@
 # REDSTRING backend on the VPS. Run from this directory:  docker compose up -d --build
-# TLS + routing come from the existing Caddy on the shared "edge" network (see Caddyfile.snippet).
+# TLS + routing come from the server's shared edge Caddy (/opt/edge) on the "edge" network;
+# deploy/Caddyfile is installed as /opt/edge/sites/redstring.caddy.
 name: redstring
 
 services:
@@ -47,7 +48,7 @@ services:
     environment:
       PGPASSWORD: ${POSTGRES_PASSWORD}
     volumes:
-      - ${BACKUP_DIR:-/home/ubuntu/backups/redstring}:/backups
+      - ${BACKUP_DIR:-/opt/redstring/backups}:/backups
     depends_on: [api]
     entrypoint: ["/bin/sh", "/cron.sh"]
     configs:
@@ -72,4 +73,4 @@ volumes:
 networks:
   edge:
     external: true
-    name: ${EDGE_NETWORK:-mochipump_edge}
+    name: ${EDGE_NETWORK:-edge}

@@ -1,7 +1,7 @@
-# REDSTRING site for the VPS's shared Caddy. Installed as ~/caddy-sites/redstring.caddy and
+# REDSTRING site for the shared edge Caddy. Installed as /opt/edge/sites/redstring.caddy and
 # imported by the edge Caddy (`import /etc/caddy/sites/*.caddy`); other projects keep their own files.
-# Only /api/* is public. 43-134-68-64.sslip.io itself belongs to mochipump. Replace this host with the real API domain once DNS exists.
-redstring.43-134-68-64.sslip.io {
+# Only /api/* is public.
+api.redstringmap.site {
 	encode zstd gzip
 	header {
 		Strict-Transport-Security "max-age=31536000"

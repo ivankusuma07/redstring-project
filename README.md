@@ -97,15 +97,15 @@ browser ──► Vercel (Next.js pages, OG images)      BACKEND_URL / NEXT_PUBL
   `NEXT_PUBLIC_API_URL` (both the backend origin), `NEXT_PUBLIC_SITE_URL` (https://www.redstringmap.site;
   the bare domain redirects to www). With `BACKEND_URL` set the
   app has no database; it reads through the backend and never scans or seals.
-- **Backend** (VPS, `~/redstring`): `cd deploy && cp .env.example .env` (fill in), then
-  `docker compose up -d --build`. The API joins the existing Caddy's `edge` network as
-  `redstring-api`. Only `/api/*` is public. `CORS_ORIGINS` must list the site origins (www and bare `redstringmap.site`).
-- **Caddy, one file per project:** the shared edge Caddy (owned by mochipump) imports
-  `/etc/caddy/sites/*.caddy`, mounted read-only from `~/caddy-sites` on the host. REDSTRING's site is
-  `deploy/Caddyfile`, installed with `install -m 644 deploy/Caddyfile ~/caddy-sites/redstring.caddy`
-  and applied with `docker exec mochipump-caddy-1 caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
-  Host: `redstring.43-134-68-64.sslip.io` (the bare sslip.io host belongs to mochipump).
-- Update the backend: upload the tree to `~/redstring`, then `docker compose up -d --build api`.
+- **Backend** (VPS 185.147.159.149, `/opt/redstring`, https://api.redstringmap.site):
+  `cd deploy && cp .env.example .env` (fill in), then `docker compose up -d --build`. The API joins the
+  server's `edge` network as `redstring-api`. Only `/api/*` is public. `CORS_ORIGINS` must list the
+  site origins (www and bare `redstringmap.site`).
+- **Shared edge proxy:** one Caddy for every project on the server lives in `/opt/edge` (its own compose
+  project). It owns 80/443 and imports `/opt/edge/sites/*.caddy`, one file per project. REDSTRING's site is
+  `deploy/Caddyfile`, installed with `install -m 644 deploy/Caddyfile /opt/edge/sites/redstring.caddy`
+  and applied with `docker exec edge-caddy caddy reload --config /etc/caddy/Caddyfile --adapter caddyfile`.
+- Update the backend: upload the tree to `/opt/redstring`, then `docker compose up -d --build api`.
 
 ## Data sources per chain
 

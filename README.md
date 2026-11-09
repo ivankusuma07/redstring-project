@@ -94,11 +94,12 @@ browser ──► Vercel (Next.js pages, OG images)      BACKEND_URL / NEXT_PUBL
 ```
 
 - **Frontend** (Vercel project `redstring`): `vercel deploy --prod`. Env: `BACKEND_URL`,
-  `NEXT_PUBLIC_API_URL` (both the backend origin), `NEXT_PUBLIC_SITE_URL`. With `BACKEND_URL` set the
+  `NEXT_PUBLIC_API_URL` (both the backend origin), `NEXT_PUBLIC_SITE_URL` (https://www.redstringmap.site;
+  the bare domain redirects to www). With `BACKEND_URL` set the
   app has no database; it reads through the backend and never scans or seals.
 - **Backend** (VPS, `~/redstring`): `cd deploy && cp .env.example .env` (fill in), then
   `docker compose up -d --build`. The API joins the existing Caddy's `edge` network as
-  `redstring-api`. Only `/api/*` is public. `CORS_ORIGINS` must list the Vercel origin(s).
+  `redstring-api`. Only `/api/*` is public. `CORS_ORIGINS` must list the site origins (www and bare `redstringmap.site`).
 - **Caddy, one file per project:** the shared edge Caddy (owned by mochipump) imports
   `/etc/caddy/sites/*.caddy`, mounted read-only from `~/caddy-sites` on the host. REDSTRING's site is
   `deploy/Caddyfile`, installed with `install -m 644 deploy/Caddyfile ~/caddy-sites/redstring.caddy`

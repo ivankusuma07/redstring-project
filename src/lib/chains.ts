@@ -9,6 +9,9 @@ export interface ChainConfig {
   /** Endpoint for eth_getLogs history replay. Defaults to the public RPC, because free tiers of
    *  keyed providers (Alchemy) cap getLogs to ~10 blocks. */
   logsRpc: string;
+  /** Public endpoints tried in order when the main RPC refuses or fails (quota, outage).
+   *  Override with RPC_FALLBACK_<CHAIN>, comma-separated. */
+  rpcFallbacks: string[];
   explorer: string; // human explorer base URL
   hypersync: string;
   dexscreener: string;
@@ -19,6 +22,11 @@ export interface ChainConfig {
 }
 
 const env = (k: string) => (typeof process !== "undefined" ? process.env[k] : undefined) || undefined;
+const list = (k: string, fallback: string[]) =>
+  env(k)
+    ?.split(",")
+    .map((s) => s.trim())
+    .filter(Boolean) ?? fallback;
 
 export const CHAINS: Record<ChainKey, ChainConfig> = {
   robinhood: {
@@ -28,6 +36,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     short: "Robinhood",
     rpc: env("RPC_ROBINHOOD") ?? "https://rpc.mainnet.chain.robinhood.com",
     logsRpc: env("RPC_LOGS_ROBINHOOD") ?? env("RPC_ROBINHOOD") ?? "https://rpc.mainnet.chain.robinhood.com",
+    rpcFallbacks: list("RPC_FALLBACK_ROBINHOOD", []),
     explorer: env("EXPLORER_ROBINHOOD") ?? "https://robin.etherscan.io",
     hypersync: "https://robinhood.hypersync.xyz",
     dexscreener: "robinhood",
@@ -41,6 +50,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     short: "Base",
     rpc: env("RPC_BASE") ?? "https://mainnet.base.org",
     logsRpc: env("RPC_LOGS_BASE") ?? "https://mainnet.base.org",
+    rpcFallbacks: list("RPC_FALLBACK_BASE", ["https://mainnet.base.org", "https://base-rpc.publicnode.com"]),
     explorer: env("EXPLORER_BASE") ?? "https://basescan.org",
     hypersync: "https://base.hypersync.xyz",
     dexscreener: "base",
@@ -54,6 +64,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     short: "Ethereum",
     rpc: env("RPC_ETHEREUM") ?? "https://ethereum-rpc.publicnode.com",
     logsRpc: env("RPC_LOGS_ETHEREUM") ?? "https://ethereum-rpc.publicnode.com",
+    rpcFallbacks: list("RPC_FALLBACK_ETHEREUM", ["https://ethereum-rpc.publicnode.com", "https://eth.drpc.org"]),
     explorer: env("EXPLORER_ETHEREUM") ?? "https://etherscan.io",
     hypersync: "https://eth.hypersync.xyz",
     dexscreener: "ethereum",
@@ -67,6 +78,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     short: "BNB",
     rpc: env("RPC_BNB") ?? "https://bsc-rpc.publicnode.com",
     logsRpc: env("RPC_LOGS_BNB") ?? "https://bsc-rpc.publicnode.com",
+    rpcFallbacks: list("RPC_FALLBACK_BNB", ["https://bsc-rpc.publicnode.com", "https://bsc-dataseed.bnbchain.org"]),
     explorer: env("EXPLORER_BNB") ?? "https://bscscan.com",
     hypersync: "https://bsc.hypersync.xyz",
     dexscreener: "bsc",
@@ -80,6 +92,7 @@ export const CHAINS: Record<ChainKey, ChainConfig> = {
     short: "Arbitrum",
     rpc: env("RPC_ARBITRUM") ?? "https://arb1.arbitrum.io/rpc",
     logsRpc: env("RPC_LOGS_ARBITRUM") ?? "https://arb1.arbitrum.io/rpc",
+    rpcFallbacks: list("RPC_FALLBACK_ARBITRUM", ["https://arb1.arbitrum.io/rpc", "https://arbitrum-one-rpc.publicnode.com"]),
     explorer: env("EXPLORER_ARBITRUM") ?? "https://arbiscan.io",
     hypersync: "https://arbitrum.hypersync.xyz",
     dexscreener: "arbitrum",

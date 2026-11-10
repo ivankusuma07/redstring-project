@@ -156,6 +156,36 @@ export async function transfers(
   return { transfers: out, blockTimes: times, complete: true };
 }
 
+/**
+ * The token's first Transfer (usually its mint), or null if it has none. HyperSync scans from
+ * genesis in chunks, so this pages until the first log shows up. Needs no archive RPC.
+ */
+export async function firstTransfer(chain: ChainKey, tokenAddr: string, toBlock: number, deadline: number): Promise<RawTransfer | null> {
+  let from = 0;
+  while (from < toBlock) {
+    if (Date.now() > deadline) throw new Error("HyperSync: out of time looking for the first transfer");
+    const r = await query(
+      chain,
+      {
+        from_block: from,
+        to_block: toBlock + 1,
+        max_num_logs: 1,
+        logs: [{ address: [tokenAddr], topics: [[TRANSFER_TOPIC]] }],
+        field_selection: { log: ["block_number", "transaction_hash", "topic1", "topic2", "topic3", "data"] },
+      },
+      deadline,
+    );
+    const l = batches(r)
+      .flatMap((b) => b.logs ?? [])
+      .find((x) => x.topic1 && x.topic2 && !x.topic3);
+    if (l)
+      return { from: topicAddr(l.topic1!), to: topicAddr(l.topic2!), value: big(l.data?.slice(0, 66)), block: num(l.block_number), tx: l.transaction_hash ?? null };
+    if (!r.next_block || r.next_block <= from) break;
+    from = r.next_block;
+  }
+  return null;
+}
+
 /** First incoming native transfer (value > 0) for each wallet: its gas funder. */
 export async function firstFunders(
   chain: ChainKey,

@@ -160,7 +160,13 @@ function hypersyncFetcher(chain: ChainKey, token: string, latest: number): Fetch
   return {
     name: "HyperSync",
     concurrency: 1,
-    first: async () => ({ block: await rpc.findDeployBlock(chain, token, latest), transfer: null }),
+    // HyperSync finds the first transfer itself; the RPC deploy-block search needs an archive node,
+    // which the public fallbacks are not.
+    first: async (deadline) => {
+      const t = await hs.firstTransfer(chain, token, latest, deadline).catch(() => undefined);
+      if (t !== undefined) return t ? { block: t.block, transfer: t } : null;
+      return { block: await rpc.findDeployBlock(chain, token, latest), transfer: null };
+    },
     read: async (r, deadline) => {
       const res = await hs.transfers(chain, token, r.to, { fromBlock: r.from, maxLogs: Number.MAX_SAFE_INTEGER, deadline });
       if (!res.complete) throw new OutOfTime();

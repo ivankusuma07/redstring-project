@@ -2,6 +2,7 @@ import { decodeAbiParameters, hexToString, type Hex } from "viem";
 import { CHAINS } from "../../chains";
 import type { ChainKey } from "../../types";
 import type { RawTransfer } from "../raw";
+import { BUSY_BENCH_MS, markDown, QUOTA_BENCH_MS, refusal, rpcUrls } from "./endpoints";
 
 export const TRANSFER_TOPIC = "0xddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef";
 
@@ -9,6 +10,8 @@ export class RpcError extends Error {
   constructor(
     message: string,
     public code?: number,
+    /** The node answered and rejected the call itself (revert, range too wide): another endpoint won't help. */
+    public callError = false,
   ) {
     super(message);
   }
@@ -17,31 +20,82 @@ export class RpcError extends Error {
 let rid = 1;
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
-export async function rpc<T = unknown>(chain: ChainKey, method: string, params: unknown[], timeoutMs = 30_000, url = CHAINS[chain].rpc): Promise<T> {
+/** Per-second throttles clear quickly: retry a few times, then move on to the next endpoint. */
+const THROTTLE_RETRIES = 3;
+
+type RpcReply<T> = { result?: T; error?: { code: number; message: string } };
+
+const readBody = async (res: Response): Promise<unknown> => {
+  const text = await res.text().catch(() => "");
+  try {
+    return JSON.parse(text) as unknown;
+  } catch {
+    return { error: { code: res.status, message: text.slice(0, 200) } };
+  }
+};
+
+/** One endpoint, with throttle retries. Endpoint-level failures bench the URL and throw. */
+async function rpcAt<T>(url: string, method: string, params: unknown[], timeoutMs: number): Promise<T> {
   for (let attempt = 0; ; attempt++) {
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify({ jsonrpc: "2.0", id: rid++, method, params }),
-      signal: AbortSignal.timeout(timeoutMs),
-      cache: "no-store",
-    });
-    const throttled = res.status === 429 || res.status === 503;
-    const j = throttled || !res.ok ? null : ((await res.json()) as { result?: T; error?: { code: number; message: string } });
-    // Keyed providers throttle per second (e.g. right after a heavy history read): back off and retry.
-    if ((throttled || j?.error?.code === 429) && attempt < 5) {
-      await sleep(500 * 2 ** attempt);
-      continue;
+    let res: Response;
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ jsonrpc: "2.0", id: rid++, method, params }),
+        signal: AbortSignal.timeout(timeoutMs),
+        cache: "no-store",
+      });
+    } catch (e) {
+      markDown(url, BUSY_BENCH_MS, `unreachable (${(e as Error).name})`);
+      throw new RpcError(`RPC ${method}: endpoint unreachable`);
     }
-    if (!j) throw new RpcError(`RPC ${method} HTTP ${res.status}`, res.status);
-    if (j.error) throw new RpcError(j.error.message, j.error.code);
+    const j = (await readBody(res)) as RpcReply<T>;
+    const msg = j?.error?.message ?? "";
+    const refused = refusal(res.status, j?.error?.code, msg);
+    if (refused === "quota") {
+      markDown(url, QUOTA_BENCH_MS, msg || `HTTP ${res.status}`);
+      throw new RpcError(`RPC ${method}: provider quota or key refused`, res.status);
+    }
+    // Keyed providers throttle per second (e.g. right after a heavy history read): back off and retry.
+    if (refused === "throttle") {
+      if (attempt < THROTTLE_RETRIES) {
+        await sleep(500 * 2 ** attempt);
+        continue;
+      }
+      markDown(url, BUSY_BENCH_MS, "still throttled after retries");
+      throw new RpcError(`RPC ${method}: throttled`, 429);
+    }
+    // A JSON-RPC error is about the call (revert, range too wide), whatever the HTTP status.
+    if (j && typeof j === "object" && j.error && res.status < 500) throw new RpcError(j.error.message, j.error.code, true);
+    if (!res.ok || !j || typeof j !== "object" || j.error) {
+      markDown(url, BUSY_BENCH_MS, `HTTP ${res.status}`);
+      throw new RpcError(`RPC ${method} HTTP ${res.status}`, res.status);
+    }
     return j.result as T;
   }
 }
 
-/** JSON-RPC batch; falls back to sequential calls when the endpoint rejects batches. */
 /**
- * JSON-RPC batch. A throttled batch backs off and is retried whole; only endpoints that don't
+ * JSON-RPC call on the chain's configured endpoint (or `url`), failing over to the public
+ * endpoints when the provider refuses, throttles past the retries, or is unreachable.
+ */
+export async function rpc<T = unknown>(chain: ChainKey, method: string, params: unknown[], timeoutMs = 30_000, url = CHAINS[chain].rpc): Promise<T> {
+  let last: unknown = new RpcError(`RPC ${method}: no endpoint`);
+  for (const u of rpcUrls(chain, url)) {
+    try {
+      return await rpcAt<T>(u, method, params, timeoutMs);
+    } catch (e) {
+      if (e instanceof RpcError && e.callError) throw e;
+      last = e;
+    }
+  }
+  throw last;
+}
+
+/**
+ * JSON-RPC batch. A throttled batch backs off and is retried whole; a provider that refuses or
+ * stays throttled is benched and the batch moves to the next endpoint. Endpoints that don't
  * support batches fall back to one call at a time. Calls that still fail come back as null.
  */
 export async function rpcBatch<T = unknown>(chain: ChainKey, calls: { method: string; params: unknown[] }[], size = 40): Promise<(T | null)[]> {
@@ -49,25 +103,43 @@ export async function rpcBatch<T = unknown>(chain: ChainKey, calls: { method: st
   for (let i = 0; i < calls.length; i += size) {
     const chunk = calls.slice(i, i + size);
     const body = JSON.stringify(chunk.map((c, k) => ({ jsonrpc: "2.0", id: k, method: c.method, params: c.params })));
-    type Row = { id: number; result?: T; error?: { code?: number } };
+    type Row = { id: number; result?: T; error?: { code?: number; message?: string } };
     let rows = null as Row[] | null;
     let unsupported = false;
-    for (let attempt = 0; attempt < 6 && !rows && !unsupported; attempt++) {
-      try {
-        const res = await fetch(CHAINS[chain].rpc, {
-          method: "POST",
-          headers: { "content-type": "application/json" },
-          body,
-          signal: AbortSignal.timeout(30_000),
-          cache: "no-store",
-        });
-        const j = res.status === 429 || res.status === 503 ? null : ((await res.json()) as unknown);
-        if (j && !Array.isArray(j)) unsupported = true;
-        else if (j && !(j as Row[]).some((r) => r.error?.code === 429)) rows = j as Row[];
-      } catch {
-        // network error / timeout: retry
+    for (const url of rpcUrls(chain)) {
+      for (let attempt = 0; attempt <= THROTTLE_RETRIES && !rows && !unsupported; attempt++) {
+        let res: Response;
+        try {
+          res = await fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body, signal: AbortSignal.timeout(30_000), cache: "no-store" });
+        } catch {
+          if (attempt >= 1) {
+            markDown(url, BUSY_BENCH_MS, "unreachable");
+            break;
+          }
+          await sleep(500);
+          continue;
+        }
+        const j = await readBody(res);
+        const single = !Array.isArray(j) ? (j as RpcReply<T>) : null;
+        const limited = Array.isArray(j) ? (j as Row[]).find((r) => r.error?.code === 429)?.error : single?.error;
+        const refused = refusal(res.status, limited?.code, limited?.message ?? "");
+        if (refused === "quota") {
+          markDown(url, QUOTA_BENCH_MS, limited?.message || `HTTP ${res.status}`);
+          break;
+        }
+        if (refused === "throttle") {
+          if (attempt === THROTTLE_RETRIES) markDown(url, BUSY_BENCH_MS, "still throttled after retries");
+          else await sleep(500 * 2 ** attempt);
+          continue;
+        }
+        if (!res.ok) {
+          markDown(url, BUSY_BENCH_MS, `HTTP ${res.status}`);
+          break;
+        }
+        if (Array.isArray(j)) rows = j as Row[];
+        else unsupported = true;
       }
-      if (!rows && !unsupported) await sleep(500 * 2 ** attempt);
+      if (rows || unsupported) break;
     }
     if (rows) {
       const byId = new Map(rows.map((r) => [r.id, r]));

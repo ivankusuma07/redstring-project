@@ -168,24 +168,36 @@ export async function collect(
   const missing = wallets.filter((w) => !cached[w]);
   const funderDeadline = Math.max(deadline, Date.now() + 45_000);
   let found: Record<string, string> | null = null;
-  if (!missing.length) found = {};
-  else if (al.alchemyEnabled(chain)) {
+  // Alchemy first; whatever it couldn't check (quota gone, throttled) goes to HyperSync.
+  let todo = missing;
+  if (todo.length && al.alchemyEnabled(chain)) {
     try {
-      const r = await al.firstFunders(chain, missing, latest, funderDeadline);
+      const r = await al.firstFunders(chain, todo, latest, funderDeadline);
       found = r.funders;
       if (!sources.includes("Alchemy")) sources.push("Alchemy");
-      if (r.checked < missing.length) limits.push(`Gas funders checked for ${wallets.length - missing.length + r.checked} of ${wallets.length} wallets (time limit).`);
+      todo = al.alchemyEnabled(chain) ? [] : r.unchecked;
+      if (!todo.length && r.checked < missing.length) limits.push(`Gas funders checked for ${wallets.length - missing.length + r.checked} of ${wallets.length} wallets (time limit).`);
     } catch (e) {
-      limits.push(`Gas-funder lookup failed: ${(e as Error).message}`);
+      if (!(e instanceof al.AlchemyUnavailable)) {
+        limits.push(`Gas-funder lookup failed: ${(e as Error).message}`);
+        todo = [];
+      }
     }
-  } else if (hs.hypersyncEnabled()) {
+  }
+  if (todo.length && !al.alchemyEnabled(chain) && hs.hypersyncEnabled()) {
     try {
-      found = await hs.firstFunders(chain, missing, latest, funderDeadline);
+      found = { ...found, ...(await hs.firstFunders(chain, todo, latest, funderDeadline)) };
       if (!sources.includes("HyperSync")) sources.push("HyperSync");
     } catch (e) {
       limits.push(`Gas-funder lookup failed: ${(e as Error).message}`);
     }
-  } else limits.push("Shared gas funders not checked (needs HYPERSYNC_TOKEN or an Alchemy RPC).");
+  } else if (!missing.length) found = {};
+  else if (todo.length)
+    limits.push(
+      al.alchemyUrl(chain)
+        ? `Shared gas funders not checked for ${todo.length} of ${wallets.length} wallets (Alchemy unavailable right now, no HYPERSYNC_TOKEN).`
+        : "Shared gas funders not checked (needs HYPERSYNC_TOKEN or an Alchemy RPC).",
+    );
   if (found) {
     await store.saveFunders(chain, found).catch(() => undefined);
     funders = { ...cached, ...found };

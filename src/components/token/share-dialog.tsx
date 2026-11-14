@@ -18,6 +18,7 @@ export function ShareDialog({ s, open, onClose }: { s: Snapshot; open: boolean; 
   const url = typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
   const img = `${path}/opengraph-image`;
   const text = `$${s.token.symbol}: ${s.score.value}/100. Largest linked group holds ${(s.clusters[0]?.pct ?? 0).toFixed(1)}% of supply. Pull the string.`;
+  const via = "RedstringRH";
 
   return (
     <dialog ref={ref} onClose={onClose} className="m-auto w-[min(760px,94vw)] border-[3px] border-ink bg-white p-0 backdrop:bg-ink/60">
@@ -31,7 +32,7 @@ export function ShareDialog({ s, open, onClose }: { s: Snapshot; open: boolean; 
         {open && <img src={img} alt={`Share card for $${s.token.symbol}`} className="aspect-[1200/630] w-full border-2 border-ink" />}
         <div className="mt-5 flex flex-wrap gap-3">
           <a
-            href={`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}`}
+            href={`https://x.com/intent/post?text=${encodeURIComponent(text)}&url=${encodeURIComponent(url)}&via=${via}`}
             target="_blank"
             rel="noreferrer"
             className="inline-flex h-12 items-center bg-ink px-6 font-extrabold text-white hover:bg-signal"

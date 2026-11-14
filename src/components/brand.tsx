@@ -70,7 +70,7 @@ export function SiteFooter() {
         <Link href="/method" className="underline underline-offset-4">
           Docs
         </Link>
-        <a href="https://x.com" className="underline underline-offset-4" rel="noreferrer" target="_blank">
+        <a href="https://x.com/RedstringRH"className="underline underline-offset-4" rel="noreferrer" target="_blank">
           X
         </a>
         <Link href="/method#terms" className="underline underline-offset-4">

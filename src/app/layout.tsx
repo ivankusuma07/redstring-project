@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   title: { default: "Redstring · Who really holds it?", template: "%s · Redstring" },
   description: `Token supply forensics for ${chainNames()}. Paste a token, see who really owns it, share the receipt.`,
   openGraph: { siteName: "Redstring", type: "website" },
-  twitter: { card: "summary_large_image" },
+  twitter: { card: "summary_large_image", site: "@RedstringRH" },
 };
 
 export const viewport: Viewport = { themeColor: "#ffffff" };

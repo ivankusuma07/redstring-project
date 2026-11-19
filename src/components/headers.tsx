@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Suspense } from "react";
 import { FEATURED_HREF } from "@/lib/featured";
-import { Logo } from "./brand";
+import { Logo, XLink } from "./brand";
 import { ChainSwitch, ChainSwitchFallback } from "./chain-switch";
 import { HeaderSearch, MobileSearch } from "./search";
 
@@ -21,6 +21,7 @@ export function SiteHeader() {
           <Link href="/method" className="hidden hover:text-signal sm:block">
             03 Method
           </Link>
+          <XLink className="flex items-center hover:text-signal" />
           <Link href="/explore" className="bg-ink px-5 py-3 text-white hover:bg-signal">
             Launch app
           </Link>
@@ -35,7 +36,7 @@ export function SiteHeader() {
 export function AppHeader({ active }: { active?: "explore" | "method" }) {
   return (
     <header className="border-b-2 border-ink bg-white">
-      <div className="mx-auto flex w-full max-w-[1600px] items-center gap-6 px-5 py-4 md:gap-8 md:px-12 md:py-5">
+      <div className="mx-auto flex w-full max-w-[1600px] items-center gap-3 px-5 py-4 md:gap-8 md:px-12 md:py-5">
         <div className="flex shrink-0 items-center gap-4 md:gap-6">
           <Logo className="shrink-0 text-[22px] md:text-[26px]" />
           <Suspense fallback={<ChainSwitchFallback />}>
@@ -52,6 +53,7 @@ export function AppHeader({ active }: { active?: "explore" | "method" }) {
           <Link href="/method" className={active === "method" ? "border-b-[3px] border-ink pb-0.5" : "hover:text-signal"}>
             Method
           </Link>
+          <XLink className="flex items-center hover:text-signal" />
         </nav>
         <div className="ml-auto shrink-0 md:hidden">
           <MobileSearch />

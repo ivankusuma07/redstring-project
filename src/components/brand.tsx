@@ -71,6 +71,17 @@ export function XLogo({ className = "" }: { className?: string }) {
   );
 }
 
+export const X_URL = "https://x.com/Redstring__9";
+
+/** Icon link to the Redstring X account. */
+export function XLink({ className = "", iconClassName = "size-4" }: { className?: string; iconClassName?: string }) {
+  return (
+    <a href={X_URL} className={className} rel="noreferrer" target="_blank" aria-label="Redstring on X" title="Redstring on X">
+      <XLogo className={iconClassName} />
+    </a>
+  );
+}
+
 export function SiteFooter() {
   return (
     <footer className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-6 font-mono text-xs md:px-12">
@@ -79,9 +90,7 @@ export function SiteFooter() {
         <Link href="/method" className="underline underline-offset-4">
           Docs
         </Link>
-        <a href="https://x.com/Redstring__9" className="inline-flex items-center" rel="noreferrer" target="_blank" aria-label="Redstring on X">
-          <XLogo className="size-3.5" />
-        </a>
+        <XLink className="inline-flex items-center hover:text-signal" iconClassName="size-3.5" />
         <Link href="/method#terms" className="underline underline-offset-4">
           Terms
         </Link>

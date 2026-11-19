@@ -18,7 +18,7 @@ export function ShareDialog({ s, open, onClose }: { s: Snapshot; open: boolean; 
   const url = typeof window !== "undefined" ? `${window.location.origin}${path}` : path;
   const img = `${path}/opengraph-image`;
   const text = `$${s.token.symbol}: ${s.score.value}/100. Largest linked group holds ${(s.clusters[0]?.pct ?? 0).toFixed(1)}% of supply. Pull the string.`;
-  const via = "RedstringRH";
+  const via = "Redstring__9";
 
   return (
     <dialog ref={ref} onClose={onClose} className="m-auto w-[min(760px,94vw)] border-[3px] border-ink bg-white p-0 backdrop:bg-ink/60">

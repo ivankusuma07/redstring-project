@@ -62,6 +62,15 @@ export function Crow({ className = "", string: withString = true, dropped = fals
   );
 }
 
+/** The X (formerly Twitter) logo. Takes the text colour. */
+export function XLogo({ className = "" }: { className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" className={className} fill="currentColor" aria-hidden>
+      <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+    </svg>
+  );
+}
+
 export function SiteFooter() {
   return (
     <footer className="mx-auto flex w-full max-w-[1440px] flex-wrap items-center justify-between gap-4 px-6 py-6 font-mono text-xs md:px-12">
@@ -70,8 +79,8 @@ export function SiteFooter() {
         <Link href="/method" className="underline underline-offset-4">
           Docs
         </Link>
-        <a href="https://x.com/Redstring__9" className="underline underline-offset-4" rel="noreferrer" target="_blank">
-          X
+        <a href="https://x.com/Redstring__9" className="inline-flex items-center" rel="noreferrer" target="_blank" aria-label="Redstring on X">
+          <XLogo className="size-3.5" />
         </a>
         <Link href="/method#terms" className="underline underline-offset-4">
           Terms
